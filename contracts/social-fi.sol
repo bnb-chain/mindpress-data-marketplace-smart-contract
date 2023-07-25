@@ -11,8 +11,7 @@ import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeab
 import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
 
 contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
-    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
-    using DoubleEndedQueueUpgradeable for DoubleEndedQueueUpgradeable.Bytes32Deque;
+    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     /*----------------- constants -----------------*/
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -31,6 +30,9 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         uint256 pubCount;
         uint256 subscribeID;
         uint256[3] prices; // price for 1 month, 3 month and 1 year
+        uint256 salesVolume;
+        uint256 salesRevenue;
+        uint256 createTime;
     }
 
     enum TypesOfSubscriptions {
@@ -39,16 +41,10 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         OneYear
     }
 
-    // author address => Profile
+    // all users that have created a profile, ordered by listed time
+    EnumerableSetUpgradeable.AddressSet public users;
+    // user address => Profile
     mapping(address => Profile) public profileByAddress;
-
-    // author address => total sales volume
-    mapping(address => uint256) public salesVolume;
-    // author address => total sales revenue
-    mapping(address => uint256) public salesRevenue;
-
-    // address => unclaimed amount
-    mapping(address => uint256) private _unclaimedFunds;
 
     // sales volume ranking list, ordered by sales volume(desc)
     uint256[] private _salesVolumeRanking;
@@ -60,6 +56,9 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     // author address corresponding to the sales revenue ranking list, ordered by sales revenue(desc)
     address[] private _salesRevenueRankingAddress;
 
+    // address => unclaimed amount
+    mapping(address => uint256) private _unclaimedFunds;
+
     address public fundWallet;
 
     uint256 public transferGasLimit; // 2300 for now
@@ -69,7 +68,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     event ProfileCreated(address indexed author);
     event Subscribe(address indexed subscriber, address indexed author);
     event SubscribeFailed(address indexed subscriber, address indexed author);
-    event Post(address indexed author, string url);
+    event Post(address indexed author, uint256 indexed visibility, string url);
 
     modifier onlyOwner(uint256 _groupId) {
         require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_groupId), "SocialFi: only owner");
@@ -124,6 +123,9 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         _profile.name = _name;
         _profile.avatar = _avatar;
         _profile.bio = _bio;
+        _profile.createTime = block.timestamp;
+
+        users.add(msg.sender);
 
         emit ProfileCreated(msg.sender);
     }
@@ -159,22 +161,16 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function setPrice(uint256[3] calldata _prices) external {
-        for (uint256 i; i < _prices.length; ++i) {
-            require(_prices[i] > 0, "SocialFi: invalid price");
-        }
-
         Profile storage _profile = profileByAddress[msg.sender];
         require(bytes(_profile.name).length > 0, "SocialFi: profile not created");
         require(_profile.subscribeID > 0, "SocialFi: subscribe channel not opened");
 
-        _profile.prices = _prices;
-    }
-
-    function post(string calldata _url) external {
-        Profile storage _profile = profileByAddress[msg.sender];
-        _profile.pubCount += 1;
-
-        emit Post(msg.sender, _url);
+        for (uint256 i; i < _prices.length; ++i) {
+            // 0 means no change
+            if (_prices[i] > 0) {
+                _profile.prices = _prices;
+            }
+        }
     }
 
     function subscribe(address _author, TypesOfSubscriptions _type) external payable {
@@ -233,6 +229,27 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         amount = _unclaimedFunds[msg.sender];
     }
 
+    function getUsersProfile(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory _addrs, Profile[] memory _profiles, uint256 _totalLength) {
+        _totalLength = users.length();
+        if (offset >= _totalLength) {
+            return (_addrs, _profiles, _totalLength);
+        }
+
+        uint256 count = _totalLength - offset;
+        if (count > limit) {
+            count = limit;
+        }
+        _addrs = new address[](count);
+        _profiles = new Profile[](count);
+        for (uint256 i; i < count; ++i) {
+            _addrs[i] = users.at(_totalLength - offset - i - 1); // reverse order
+            _profiles[i] = profileByAddress[_addrs[i]];
+        }
+    }
+
     function getSalesVolumeRanking() external view returns (address[] memory _addrs, uint256[] memory _volumes) {
         _addrs = _salesVolumeRankingAddress;
         _volumes = _salesVolumeRanking;
@@ -279,10 +296,11 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
 
     /*----------------- internal functions -----------------*/
     function _updateSales(address _author, uint256 _price) internal {
+        Profile storage _profile = profileByAddress[_author];
         // 1. update sales volume
-        salesVolume[_author] += 1;
+        _profile.salesVolume += 1;
 
-        uint256 _volume = salesVolume[_author];
+        uint256 _volume = _profile.salesVolume;
         for (uint256 i; i < _salesVolumeRanking.length; ++i) {
             if (_volume > _salesVolumeRanking[i]) {
                 uint256 endIdx = _salesVolumeRanking.length - 1;
@@ -303,9 +321,9 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         }
 
         // 2. update sales revenue
-        salesRevenue[_author] += _price;
+        _profile.salesRevenue += _price;
 
-        uint256 _revenue = salesRevenue[_author];
+        uint256 _revenue = _profile.salesRevenue;
         for (uint256 i; i < _salesRevenueRanking.length; ++i) {
             if (_revenue > _salesRevenueRanking[i]) {
                 uint256 endIdx = _salesRevenueRanking.length - 1;
