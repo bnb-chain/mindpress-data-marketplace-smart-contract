@@ -30,7 +30,13 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         string bio;
         uint256 pubCount;
         uint256 subscribeID;
-        uint256 price;
+        uint256[3] prices; // price for 1 month, 3 month and 1 year
+    }
+
+    enum TypesOfSubscriptions {
+        OneMonth,
+        ThreeMonths,
+        OneYear
     }
 
     // author address => Profile
@@ -137,23 +143,31 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         }
     }
 
-    function openUpSubscribeChannel(uint256 _groupId, uint256 _price) external payable onlyOwner(_groupId) {
-        require(_price > 0, "SocialFi: invalid price");
+    function openUpSubscribeChannel(
+        uint256 _groupId,
+        uint256[3] calldata _prices
+    ) external payable onlyOwner(_groupId) {
+        for (uint256 i; i < _prices.length; ++i) {
+            require(_prices[i] > 0, "SocialFi: invalid price");
+        }
+
         Profile memory _profile = profileByAddress[msg.sender];
         require(_profile.subscribeID == 0, "SocialFi: already opened");
 
         _profile.subscribeID = _groupId;
-        _profile.price = _price;
+        _profile.prices = _prices;
     }
 
-    function setPrice(uint256 _price) external {
-        require(_price > 0, "SocialFi: invalid price");
+    function setPrice(uint256[3] calldata _prices) external {
+        for (uint256 i; i < _prices.length; ++i) {
+            require(_prices[i] > 0, "SocialFi: invalid price");
+        }
 
         Profile storage _profile = profileByAddress[msg.sender];
         require(bytes(_profile.name).length > 0, "SocialFi: profile not created");
         require(_profile.subscribeID > 0, "SocialFi: subscribe channel not opened");
 
-        _profile.price = _price;
+        _profile.prices = _prices;
     }
 
     function post(string calldata _url) external {
@@ -163,18 +177,19 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         emit Post(msg.sender, _url);
     }
 
-    function subscribe(address _author) external payable {
+    function subscribe(address _author, TypesOfSubscriptions _type) external payable {
         Profile memory _profile = profileByAddress[_author];
-        require(_profile.price > 0, "SocialFi: not subscribable");
-        require(msg.value >= _profile.price + _getTotalFee(), "SocialFi: insufficient fund");
-
         uint256 _groupId = _profile.subscribeID;
+        uint256 _price = _profile.prices[uint256(_type)];
+        require(_groupId > 0 && _price > 0, "SocialFi: not subscribable");
+        require(msg.value >= _price + _getTotalFee(), "SocialFi: insufficient fund");
+
         address buyer = msg.sender;
         require(IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, _groupId) == 0, "SocialFi: already subscribed");
 
         address[] memory members = new address[](1);
         members[0] = buyer;
-        bytes memory callbackData = abi.encode(_author, buyer, _profile.price);
+        bytes memory callbackData = abi.encode(_author, buyer, _price);
         UpdateGroupSynPackage memory updatePkg = UpdateGroupSynPackage({
             operator: _author,
             id: _groupId,
@@ -189,7 +204,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
             callbackData: callbackData
         });
 
-        IGroupHub(_GROUP_HUB).updateGroup{value: msg.value - _profile.price}(updatePkg, callbackGasLimit, _extraData);
+        IGroupHub(_GROUP_HUB).updateGroup{value: msg.value - _price}(updatePkg, callbackGasLimit, _extraData);
     }
 
     function claim() external nonReentrant {
@@ -263,7 +278,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     /*----------------- internal functions -----------------*/
-    function _updateSales(address _author) internal {
+    function _updateSales(address _author, uint256 _price) internal {
         // 1. update sales volume
         salesVolume[_author] += 1;
 
@@ -288,7 +303,6 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         }
 
         // 2. update sales revenue
-        uint256 _price = profileByAddress[_author].price;
         salesRevenue[_author] += _price;
 
         uint256 _revenue = salesRevenue[_author];
@@ -326,21 +340,21 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function _updateGroupCallback(uint32 _status, uint256, bytes memory _callbackData) internal override {
-        (address _author, address buyer, uint256 price) = abi.decode(_callbackData, (address, address, uint256));
+        (address _author, address buyer, uint256 _price) = abi.decode(_callbackData, (address, address, uint256));
 
         if (_status == STATUS_SUCCESS) {
-            uint256 feeRateAmount = (price * feeRate) / 10_000;
+            uint256 feeRateAmount = (_price * feeRate) / 10_000;
             payable(fundWallet).transfer(feeRateAmount);
-            (bool success,) = payable(_author).call{gas: transferGasLimit, value: price - feeRateAmount}("");
+            (bool success,) = payable(_author).call{gas: transferGasLimit, value: _price - feeRateAmount}("");
             if (!success) {
-                _unclaimedFunds[_author] += price - feeRateAmount;
+                _unclaimedFunds[_author] += _price - feeRateAmount;
             }
-            _updateSales(_author);
+            _updateSales(_author, _price);
             emit Subscribe(buyer, _author);
         } else {
-            (bool success,) = payable(buyer).call{gas: transferGasLimit, value: price}("");
+            (bool success,) = payable(buyer).call{gas: transferGasLimit, value: _price}("");
             if (!success) {
-                _unclaimedFunds[buyer] += price;
+                _unclaimedFunds[buyer] += _price;
             }
             emit SubscribeFailed(buyer, _author);
         }
