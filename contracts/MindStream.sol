@@ -10,17 +10,17 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
 
-contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
+contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     /*----------------- constants -----------------*/
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     // greenfield system contracts
-    address public constant _CROSS_CHAIN = 0xB08522f47a233D2927d57454e02472F55a6e02CA;
-    address public constant _GROUP_HUB = 0xCE13bA688CaCB1Fb988C8332DEe68567dDa72Cd1;
-    address public constant _GROUP_TOKEN = 0xDa412fbA12CCB45CfE28b6C2eE890Fc603026c89;
-    address public constant _MEMBER_TOKEN = 0xe2d25F628E56d2fD279632D8036f82256627Be99;
+    address public constant _CROSS_CHAIN = 0x5A12cf39eA1d06D2F2B724356eCc7648276054D3;
+    address public constant _GROUP_HUB = 0x55fbcA62366eD96B99ceEc3f19f7413489FB62D2;
+    address public constant _GROUP_TOKEN = 0x4A5Db47C7aBe10611144B2F0E446cC1c1796BE6c;
+    address public constant _MEMBER_TOKEN = 0x038E38a9Ad634D88133535c28a576FAb43750f09;
 
     /*----------------- storage -----------------*/
     struct Profile {
@@ -42,8 +42,8 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     // all users that have created a profile, ordered by listed time
-    EnumerableSetUpgradeable.AddressSet public users;
-    // user address => Profile
+    EnumerableSetUpgradeable.AddressSet private _users;
+    // author address => Profile
     mapping(address => Profile) public profileByAddress;
 
     // sales volume ranking list, ordered by sales volume(desc)
@@ -71,7 +71,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     event Post(address indexed author, uint256 indexed visibility, string url);
 
     modifier onlyOwner(uint256 _groupId) {
-        require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_groupId), "SocialFi: only owner");
+        require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_groupId), "MindStream: only owner");
         _;
     }
 
@@ -82,7 +82,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         uint256 _callbackGasLimit,
         uint8 _failureHandleStrategy
     ) public initializer {
-        require(_initAdmin != address(0), "SocialFi: invalid admin address");
+        require(_initAdmin != address(0), "MindStream: invalid admin address");
         _grantRole(DEFAULT_ADMIN_ROLE, _initAdmin);
 
         transferGasLimit = 2300;
@@ -107,32 +107,33 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         uint256 resourceId,
         bytes calldata callbackData
     ) external override(GroupApp) {
-        require(msg.sender == _GROUP_HUB, "SocialFi: invalid caller");
+        require(msg.sender == _GROUP_HUB, "MindStream: invalid caller");
 
         if (resourceType == RESOURCE_GROUP) {
             _groupGreenfieldCall(status, operationType, resourceId, callbackData);
         } else {
-            revert("SocialFi: invalid resource type");
+            revert("MindStream: invalid resource type");
         }
     }
 
     function createProfile(string calldata _name, string calldata _avatar, string calldata _bio) external {
         Profile storage _profile = profileByAddress[msg.sender];
-        require(bytes(_profile.name).length == 0, "SocialFi: profile already created");
+        require(bytes(_profile.name).length == 0, "MindStream: profile already created");
+        require(bytes(_name).length > 0, "MindStream: invalid name");
 
         _profile.name = _name;
         _profile.avatar = _avatar;
         _profile.bio = _bio;
         _profile.createTime = block.timestamp;
 
-        users.add(msg.sender);
+        _users.add(msg.sender);
 
         emit ProfileCreated(msg.sender);
     }
 
     function editProfile(string calldata _name, string calldata _avatar, string calldata _bio) external {
         Profile storage _profile = profileByAddress[msg.sender];
-        require(bytes(_profile.name).length > 0, "SocialFi: profile not created");
+        require(bytes(_profile.name).length > 0, "MindStream: profile not created");
 
         if (bytes(_name).length > 0) {
             _profile.name = _name;
@@ -145,16 +146,13 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         }
     }
 
-    function openUpSubscribeChannel(
-        uint256 _groupId,
-        uint256[3] calldata _prices
-    ) external payable onlyOwner(_groupId) {
+    function openUpSubscribeChannel(uint256 _groupId, uint256[3] calldata _prices) external onlyOwner(_groupId) {
         for (uint256 i; i < _prices.length; ++i) {
-            require(_prices[i] > 0, "SocialFi: invalid price");
+            require(_prices[i] > 0, "MindStream: invalid price");
         }
 
-        Profile memory _profile = profileByAddress[msg.sender];
-        require(_profile.subscribeID == 0, "SocialFi: already opened");
+        Profile storage _profile = profileByAddress[msg.sender];
+        require(_profile.subscribeID == 0, "MindStream: already opened");
 
         _profile.subscribeID = _groupId;
         _profile.prices = _prices;
@@ -162,8 +160,8 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
 
     function setPrice(uint256[3] calldata _prices) external {
         Profile storage _profile = profileByAddress[msg.sender];
-        require(bytes(_profile.name).length > 0, "SocialFi: profile not created");
-        require(_profile.subscribeID > 0, "SocialFi: subscribe channel not opened");
+        require(bytes(_profile.name).length > 0, "MindStream: profile not created");
+        require(_profile.subscribeID > 0, "MindStream: subscribe channel not opened");
 
         for (uint256 i; i < _prices.length; ++i) {
             // 0 means no change
@@ -177,11 +175,13 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         Profile memory _profile = profileByAddress[_author];
         uint256 _groupId = _profile.subscribeID;
         uint256 _price = _profile.prices[uint256(_type)];
-        require(_groupId > 0 && _price > 0, "SocialFi: not subscribable");
-        require(msg.value >= _price + _getTotalFee(), "SocialFi: insufficient fund");
+        require(_groupId > 0 && _price > 0, "MindStream: not subscribable");
+        require(msg.value >= _price + _getTotalFee(), "MindStream: insufficient fund");
 
         address buyer = msg.sender;
-        require(IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, _groupId) == 0, "SocialFi: already subscribed");
+        require(
+            IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, _groupId) == 0, "MindStream: already subscribed"
+        );
 
         address[] memory members = new address[](1);
         members[0] = buyer;
@@ -205,10 +205,10 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
 
     function claim() external nonReentrant {
         uint256 amount = _unclaimedFunds[msg.sender];
-        require(amount > 0, "SocialFi: no unclaimed funds");
+        require(amount > 0, "MindStream: no unclaimed funds");
         _unclaimedFunds[msg.sender] = 0;
         (bool success,) = msg.sender.call{value: amount}("");
-        require(success, "SocialFi: claim failed");
+        require(success, "MindStream: claim failed");
     }
 
     /*----------------- view functions -----------------*/
@@ -218,7 +218,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         override
         returns (uint256 version, string memory name, string memory description)
     {
-        return (1, "SocialFi", "first version");
+        return (1, "MindStream", "first version");
     }
 
     function getMinRelayFee() external returns (uint256 amount) {
@@ -233,19 +233,19 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         uint256 offset,
         uint256 limit
     ) external view returns (address[] memory _addrs, Profile[] memory _profiles, uint256 _totalLength) {
-        _totalLength = users.length();
-        if (offset >= _totalLength) {
+        _totalLength = _users.length();
+        if (offset * limit >= _totalLength) {
             return (_addrs, _profiles, _totalLength);
         }
 
-        uint256 count = _totalLength - offset;
+        uint256 count = _totalLength - offset * limit;
         if (count > limit) {
             count = limit;
         }
         _addrs = new address[](count);
         _profiles = new Profile[](count);
         for (uint256 i; i < count; ++i) {
-            _addrs[i] = users.at(_totalLength - offset - i - 1); // reverse order
+            _addrs[i] = _users.at(_totalLength - offset * limit - i - 1); // reverse order
             _profiles[i] = profileByAddress[_addrs[i]];
         }
     }
@@ -282,7 +282,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function setFeeRate(uint256 _feeRate) external onlyRole(OPERATOR_ROLE) {
-        require(_feeRate < 10_000, "SocialFi: invalid feeRate");
+        require(_feeRate < 10_000, "MindStream: invalid feeRate");
         feeRate = _feeRate;
     }
 
@@ -353,7 +353,7 @@ contract SocialFi is ReentrancyGuard, AccessControl, GroupApp {
         if (operationType == TYPE_UPDATE) {
             _updateGroupCallback(status, resourceId, callbackData);
         } else {
-            revert("SocialFi: invalid operation type");
+            revert("MindStream: invalid operation type");
         }
     }
 
