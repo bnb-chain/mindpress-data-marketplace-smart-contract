@@ -27,12 +27,17 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         string name;
         string avatar; // image url
         string bio;
-        uint256 pubCount;
+        uint256 createTime;
+    }
+
+    struct PersonalSettings {
         uint256 subscribeID;
         uint256[3] prices; // price for 1 month, 3 month and 1 year
+    }
+
+    struct Statistics {
         uint256 salesVolume;
         uint256 salesRevenue;
-        uint256 createTime;
     }
 
     enum TypesOfSubscriptions {
@@ -45,6 +50,10 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     EnumerableSetUpgradeable.AddressSet private _users;
     // author address => Profile
     mapping(address => Profile) public profileByAddress;
+    // author address => PersonalSettings
+    mapping(address => PersonalSettings) public settingsByAddress;
+    // author address => Statistics
+    mapping(address => Statistics) public statisticsByAddress;
 
     // sales volume ranking list, ordered by sales volume(desc)
     uint256[] private _salesVolumeRanking;
@@ -116,25 +125,19 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         }
     }
 
-    function createProfile(string calldata _name, string calldata _avatar, string calldata _bio) external {
+    function updateProfile(string calldata _name, string calldata _avatar, string calldata _bio) external {
         Profile storage _profile = profileByAddress[msg.sender];
-        require(bytes(_profile.name).length == 0, "MindStream: profile already created");
-        require(bytes(_name).length > 0, "MindStream: invalid name");
 
-        _profile.name = _name;
-        _profile.avatar = _avatar;
-        _profile.bio = _bio;
-        _profile.createTime = block.timestamp;
+        if (bytes(_profile.name).length == 0) {
+            // first time to create profile
+            require(bytes(_name).length > 0, "MindStream: name cannot be empty");
+            _users.add(msg.sender);
+            _profile.createTime = block.timestamp;
 
-        _users.add(msg.sender);
+            emit ProfileCreated(msg.sender);
+        }
 
-        emit ProfileCreated(msg.sender);
-    }
-
-    function editProfile(string calldata _name, string calldata _avatar, string calldata _bio) external {
-        Profile storage _profile = profileByAddress[msg.sender];
-        require(bytes(_profile.name).length > 0, "MindStream: profile not created");
-
+        // update profile
         if (bytes(_name).length > 0) {
             _profile.name = _name;
         }
@@ -147,60 +150,61 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function openUpSubscribeChannel(uint256 _groupId, uint256[3] calldata _prices) external onlyOwner(_groupId) {
+        require(bytes(profileByAddress[msg.sender].name).length > 0, "MindStream: profile not created");
+
         for (uint256 i; i < _prices.length; ++i) {
             require(_prices[i] > 0, "MindStream: invalid price");
         }
 
-        Profile storage _profile = profileByAddress[msg.sender];
-        require(_profile.subscribeID == 0, "MindStream: already opened");
+        PersonalSettings storage _settings = settingsByAddress[msg.sender];
+        require(_settings.subscribeID == 0, "MindStream: already opened");
 
-        _profile.subscribeID = _groupId;
-        _profile.prices = _prices;
+        _settings.subscribeID = _groupId;
+        _settings.prices = _prices;
     }
 
     function setPrice(uint256[3] calldata _prices) external {
-        Profile storage _profile = profileByAddress[msg.sender];
-        require(bytes(_profile.name).length > 0, "MindStream: profile not created");
-        require(_profile.subscribeID > 0, "MindStream: subscribe channel not opened");
+        PersonalSettings storage _settings = settingsByAddress[msg.sender];
+        require(_settings.subscribeID > 0, "MindStream: subscribe channel not opened");
 
         for (uint256 i; i < _prices.length; ++i) {
             // 0 means no change
             if (_prices[i] > 0) {
-                _profile.prices = _prices;
+                _settings.prices[i] = _prices[i];
             }
         }
     }
 
-    function subscribe(address _author, TypesOfSubscriptions _type) external payable {
-        Profile memory _profile = profileByAddress[_author];
-        uint256 _groupId = _profile.subscribeID;
-        uint256 _price = _profile.prices[uint256(_type)];
+    function subscribeOrRenew(address _author, TypesOfSubscriptions _type) external payable {
+        PersonalSettings memory _settings = settingsByAddress[_author];
+        uint256 _groupId = _settings.subscribeID;
+        uint256 _price = _settings.prices[uint256(_type)];
         require(_groupId > 0 && _price > 0, "MindStream: not subscribable");
         require(msg.value >= _price + _getTotalFee(), "MindStream: insufficient fund");
 
         address buyer = msg.sender;
-        require(
-            IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, _groupId) == 0, "MindStream: already subscribed"
-        );
+        if (IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, _groupId) == 0) {
+            address[] memory members = new address[](1);
+            members[0] = buyer;
+            bytes memory callbackData = abi.encode(_author, buyer, _price);
+            UpdateGroupSynPackage memory updatePkg = UpdateGroupSynPackage({
+                operator: _author,
+                id: _groupId,
+                opType: UpdateGroupOpType.AddMembers,
+                members: members,
+                extraData: ""
+            });
+            ExtraData memory _extraData = ExtraData({
+                appAddress: address(this),
+                refundAddress: buyer,
+                failureHandleStrategy: failureHandleStrategy,
+                callbackData: callbackData
+            });
 
-        address[] memory members = new address[](1);
-        members[0] = buyer;
-        bytes memory callbackData = abi.encode(_author, buyer, _price);
-        UpdateGroupSynPackage memory updatePkg = UpdateGroupSynPackage({
-            operator: _author,
-            id: _groupId,
-            opType: UpdateGroupOpType.AddMembers,
-            members: members,
-            extraData: ""
-        });
-        ExtraData memory _extraData = ExtraData({
-            appAddress: address(this),
-            refundAddress: buyer,
-            failureHandleStrategy: failureHandleStrategy,
-            callbackData: callbackData
-        });
-
-        IGroupHub(_GROUP_HUB).updateGroup{value: msg.value - _price}(updatePkg, callbackGasLimit, _extraData);
+            IGroupHub(_GROUP_HUB).updateGroup{value: msg.value - _price}(updatePkg, callbackGasLimit, _extraData);
+        } else {
+            // TODO: renew
+        }
     }
 
     function claim() external nonReentrant {
@@ -229,13 +233,23 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         amount = _unclaimedFunds[msg.sender];
     }
 
-    function getUsersProfile(
+    function getUsersInfo(
         uint256 offset,
         uint256 limit
-    ) external view returns (address[] memory _addrs, Profile[] memory _profiles, uint256 _totalLength) {
+    )
+        external
+        view
+        returns (
+            address[] memory _addrs,
+            Profile[] memory _profiles,
+            PersonalSettings[] memory _settings,
+            Statistics[] memory _statistics,
+            uint256 _totalLength
+        )
+    {
         _totalLength = _users.length();
         if (offset * limit >= _totalLength) {
-            return (_addrs, _profiles, _totalLength);
+            return (_addrs, _profiles, _settings, _statistics, _totalLength);
         }
 
         uint256 count = _totalLength - offset * limit;
@@ -244,9 +258,13 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         }
         _addrs = new address[](count);
         _profiles = new Profile[](count);
+        _settings = new PersonalSettings[](count);
+        _statistics = new Statistics[](count);
         for (uint256 i; i < count; ++i) {
             _addrs[i] = _users.at(_totalLength - offset * limit - i - 1); // reverse order
             _profiles[i] = profileByAddress[_addrs[i]];
+            _settings[i] = settingsByAddress[_addrs[i]];
+            _statistics[i] = statisticsByAddress[_addrs[i]];
         }
     }
 
@@ -296,11 +314,11 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     /*----------------- internal functions -----------------*/
     function _updateSales(address _author, uint256 _price) internal {
-        Profile storage _profile = profileByAddress[_author];
+        Statistics storage _statistics = statisticsByAddress[_author];
         // 1. update sales volume
-        _profile.salesVolume += 1;
+        _statistics.salesVolume += 1;
 
-        uint256 _volume = _profile.salesVolume;
+        uint256 _volume = _statistics.salesVolume;
         for (uint256 i; i < _salesVolumeRanking.length; ++i) {
             if (_volume > _salesVolumeRanking[i]) {
                 uint256 endIdx = _salesVolumeRanking.length - 1;
@@ -321,9 +339,9 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         }
 
         // 2. update sales revenue
-        _profile.salesRevenue += _price;
+        _statistics.salesRevenue += _price;
 
-        uint256 _revenue = _profile.salesRevenue;
+        uint256 _revenue = _statistics.salesRevenue;
         for (uint256 i; i < _salesRevenueRanking.length; ++i) {
             if (_revenue > _salesRevenueRanking[i]) {
                 uint256 endIdx = _salesRevenueRanking.length - 1;

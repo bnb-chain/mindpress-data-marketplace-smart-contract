@@ -31,31 +31,20 @@ contract MindStreamTest is Test {
         groupToken = MindStream(proxyMindStream)._GROUP_TOKEN();
     }
 
-    function testCreateProfile() public {
-        // failed with empty name
+    function testUpdateProfile() public {
+        // failed with empty name when not created
         vm.expectRevert("MindStream: invalid name");
-        MindStream(proxyMindStream).createProfile("", "test", "test");
+        MindStream(proxyMindStream).updateProfile("", "test", "test");
 
         // success case
         vm.expectEmit(true, false, false, true, proxyMindStream);
         emit ProfileCreated(address(this));
-        MindStream(proxyMindStream).createProfile("test", "test", "test");
-
-        // failed with existed profile
-        vm.expectRevert("MindStream: profile already created");
-        MindStream(proxyMindStream).createProfile("test", "test", "test");
-    }
-
-    function testEditProfile() public {
-        // failed with non-exist profile
-        vm.expectRevert("MindStream: profile not created");
-        MindStream(proxyMindStream).editProfile("test1", "test2", "test3");
+        MindStream(proxyMindStream).updateProfile("test", "test", "test");
 
         // success case
-        MindStream(proxyMindStream).createProfile("test", "test", "test");
-        MindStream(proxyMindStream).editProfile("test1", "test2", "test3");
-        (string memory _name, string memory _avatar, string memory _bio,,,,,) =
-            MindStream(proxyMindStream).profileByAddress(address(this));
+        MindStream(proxyMindStream).updateProfile("test1", "test2", "test3");
+        (string memory _name, string memory _avatar, string memory _bio,) =
+                                MindStream(proxyMindStream).profileByAddress(address(this));
         assertEq(_name, "test1");
         assertEq(_avatar, "test2");
         assertEq(_bio, "test3");
@@ -64,11 +53,11 @@ contract MindStreamTest is Test {
     function testSubscribe() public {
         address _author = address(0x1234);
         vm.prank(_author);
-        MindStream(proxyMindStream).createProfile("test", "test", "test");
+        MindStream(proxyMindStream).updateProfile("test", "test", "test");
 
         // failed with no subscribeID
         vm.expectRevert("MindStream: not subscribable");
-        MindStream(proxyMindStream).subscribe(_author, MindStream.TypesOfSubscriptions.OneMonth);
+        MindStream(proxyMindStream).subscribeOrRenew(_author, MindStream.TypesOfSubscriptions.OneMonth);
 
         uint256 groupId = 97;
         vm.prank(groupHub);
@@ -82,7 +71,7 @@ contract MindStreamTest is Test {
 
         // failed with not enough fund
         vm.expectRevert("MindStream: insufficient fund");
-        MindStream(proxyMindStream).subscribe{value: 1 ether}(_author, MindStream.TypesOfSubscriptions.OneMonth);
+        MindStream(proxyMindStream).subscribeOrRenew{value: 1 ether}(_author, MindStream.TypesOfSubscriptions.OneMonth);
 
         // success case
         uint256 relayFee = _getTotalFee();
@@ -90,7 +79,7 @@ contract MindStreamTest is Test {
         members[0] = address(this);
         vm.expectEmit(true, true, true, true, groupHub);
         emit UpdateSubmitted(_author, proxyMindStream, groupId, 0, members);
-        MindStream(proxyMindStream).subscribe{value: 1 ether + relayFee}(
+        MindStream(proxyMindStream).subscribeOrRenew{value: 1 ether + relayFee}(
             _author, MindStream.TypesOfSubscriptions.OneMonth
         );
     }
