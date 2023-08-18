@@ -33,16 +33,21 @@ interface IMindStream {
     event UpdateSubmitted(address owner, address operator, uint256 id, uint8 opType, address[] members);
     event UpdateSuccess(address indexed operator, uint256 indexed id, uint8 opType);
 
+    struct PersonalSettings {
+        uint256 subscribeID;
+        uint256[3] prices;
+    }
+
     struct Profile {
         string name;
         string avatar;
         string bio;
-        uint256 pubCount;
-        uint256 subscribeID;
-        uint256[3] prices;
+        uint256 createTime;
+    }
+
+    struct Statistics {
         uint256 salesVolume;
         uint256 salesRevenue;
-        uint256 createTime;
     }
 
     function AUTH_CODE_CREATE() external view returns (uint32);
@@ -95,9 +100,7 @@ interface IMindStream {
     function callbackGasLimit() external view returns (uint256);
     function channelId() external view returns (uint8);
     function claim() external;
-    function createProfile(string memory _name, string memory _avatar, string memory _bio) external;
     function crossChain() external view returns (address);
-    function editProfile(string memory _name, string memory _avatar, string memory _bio) external;
     function failureHandleStrategy() external view returns (uint8);
     function feeRate() external view returns (uint256);
     function fundWallet() external view returns (address);
@@ -106,10 +109,16 @@ interface IMindStream {
     function getSalesRevenueRanking() external view returns (address[] memory _addrs, uint256[] memory _revenues);
     function getSalesVolumeRanking() external view returns (address[] memory _addrs, uint256[] memory _volumes);
     function getUnclaimedAmount() external view returns (uint256 amount);
-    function getUsersProfile(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory _addrs, Profile[] memory _profiles, uint256 _totalLength);
+    function getUsersInfo(uint256 offset, uint256 limit)
+        external
+        view
+        returns (
+            address[] memory _addrs,
+            Profile[] memory _profiles,
+            PersonalSettings[] memory _settings,
+            Statistics[] memory _statistics,
+            uint256 _totalLength
+        );
     function grantRole(bytes32 role, address account) external;
     function greenfieldCall(
         uint32 status,
@@ -127,7 +136,7 @@ interface IMindStream {
         uint256 _callbackGasLimit,
         uint8 _failureHandleStrategy
     ) external;
-    function openUpSubscribeChannel(uint256 _groupId, uint256[3] memory _prices) external payable;
+    function openUpSubscribeChannel(uint256 _groupId, uint256[3] memory _prices) external;
     function packageMap(bytes32)
         external
         view
@@ -142,16 +151,7 @@ interface IMindStream {
     function profileByAddress(address)
         external
         view
-        returns (
-            string memory name,
-            string memory avatar,
-            string memory bio,
-            uint256 pubCount,
-            uint256 subscribeID,
-            uint256 salesVolume,
-            uint256 salesRevenue,
-            uint256 createTime
-        );
+        returns (string memory name, string memory avatar, string memory bio, uint256 createTime);
     function removeOperator(address operator) external;
     function renounceRole(bytes32 role, address account) external;
     function retryPackage(uint8) external;
@@ -162,9 +162,12 @@ interface IMindStream {
     function setFeeRate(uint256 _feeRate) external;
     function setFundWallet(address _fundWallet) external;
     function setPrice(uint256[3] memory _prices) external;
+    function settingsByAddress(address) external view returns (uint256 subscribeID);
     function skipPackage(uint8) external;
-    function subscribe(address _author, uint8 _type) external payable;
+    function statisticsByAddress(address) external view returns (uint256 salesVolume, uint256 salesRevenue);
+    function subscribeOrRenew(address _author, uint8 _type) external payable;
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
     function transferGasLimit() external view returns (uint256);
+    function updateProfile(string memory _name, string memory _avatar, string memory _bio) external;
     function versionInfo() external pure returns (uint256 version, string memory name, string memory description);
 }
