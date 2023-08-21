@@ -44,7 +44,7 @@ contract MindStreamTest is Test {
         // success case
         MindStream(proxyMindStream).updateProfile("test1", "test2", "test3");
         (string memory _name, string memory _avatar, string memory _bio,) =
-                                MindStream(proxyMindStream).profileByAddress(address(this));
+            MindStream(proxyMindStream).profileByAddress(address(this));
         assertEq(_name, "test1");
         assertEq(_avatar, "test2");
         assertEq(_bio, "test3");

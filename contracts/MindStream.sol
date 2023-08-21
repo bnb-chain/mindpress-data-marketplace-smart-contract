@@ -22,6 +22,10 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     address public constant _GROUP_TOKEN = 0x4A5Db47C7aBe10611144B2F0E446cC1c1796BE6c;
     address public constant _MEMBER_TOKEN = 0x038E38a9Ad634D88133535c28a576FAb43750f09;
 
+    uint64 public constant ONE_MONTH = 30 days;
+    uint64 public constant THREE_MONTHS = 90 days;
+    uint64 public constant ONE_YEAR = 365 days;
+
     /*----------------- storage -----------------*/
     struct Profile {
         string name;
@@ -183,28 +187,33 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         require(msg.value >= _price + _getTotalFee(), "MindStream: insufficient fund");
 
         address buyer = msg.sender;
-        if (IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, _groupId) == 0) {
-            address[] memory members = new address[](1);
-            members[0] = buyer;
-            bytes memory callbackData = abi.encode(_author, buyer, _price);
-            UpdateGroupSynPackage memory updatePkg = UpdateGroupSynPackage({
-                operator: _author,
-                id: _groupId,
-                opType: UpdateGroupOpType.AddMembers,
-                members: members,
-                extraData: ""
-            });
-            ExtraData memory _extraData = ExtraData({
-                appAddress: address(this),
-                refundAddress: buyer,
-                failureHandleStrategy: failureHandleStrategy,
-                callbackData: callbackData
-            });
-
-            IGroupHub(_GROUP_HUB).updateGroup{value: msg.value - _price}(updatePkg, callbackGasLimit, _extraData);
+        address[] memory members = new address[](1);
+        uint64[] memory memberExpiration = new uint64[](1);
+        members[0] = buyer;
+        if (_type == TypesOfSubscriptions.OneMonth) {
+            memberExpiration[0] = uint64(block.timestamp + ONE_MONTH);
+        } else if (_type == TypesOfSubscriptions.ThreeMonths) {
+            memberExpiration[0] = uint64(block.timestamp + THREE_MONTHS);
         } else {
-            // TODO: renew
+            memberExpiration[0] = uint64(block.timestamp + ONE_YEAR);
         }
+        bytes memory callbackData = abi.encode(_author, buyer, _price);
+        UpdateGroupSynPackage memory updatePkg = UpdateGroupSynPackage({
+            operator: _author,
+            id: _groupId,
+            opType: UpdateGroupOpType.AddMembers,
+            members: members,
+            extraData: "",
+            memberExpiration: memberExpiration
+        });
+        ExtraData memory _extraData = ExtraData({
+            appAddress: address(this),
+            refundAddress: buyer,
+            failureHandleStrategy: failureHandleStrategy,
+            callbackData: callbackData
+        });
+
+        IGroupHub(_GROUP_HUB).updateGroup{value: msg.value - _price}(updatePkg, callbackGasLimit, _extraData);
     }
 
     function claim() external nonReentrant {

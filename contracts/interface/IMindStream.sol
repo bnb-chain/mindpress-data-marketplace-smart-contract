@@ -109,7 +109,10 @@ interface IMindStream {
     function getSalesRevenueRanking() external view returns (address[] memory _addrs, uint256[] memory _revenues);
     function getSalesVolumeRanking() external view returns (address[] memory _addrs, uint256[] memory _volumes);
     function getUnclaimedAmount() external view returns (uint256 amount);
-    function getUsersInfo(uint256 offset, uint256 limit)
+    function getUsersInfo(
+        uint256 offset,
+        uint256 limit
+    )
         external
         view
         returns (
