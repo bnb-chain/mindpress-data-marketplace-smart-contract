@@ -17,10 +17,10 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     // greenfield system contracts
-    address public constant _CROSS_CHAIN = 0x5A12cf39eA1d06D2F2B724356eCc7648276054D3;
-    address public constant _GROUP_HUB = 0x55fbcA62366eD96B99ceEc3f19f7413489FB62D2;
-    address public constant _GROUP_TOKEN = 0x4A5Db47C7aBe10611144B2F0E446cC1c1796BE6c;
-    address public constant _MEMBER_TOKEN = 0x038E38a9Ad634D88133535c28a576FAb43750f09;
+    address public constant _CROSS_CHAIN = 0xa5B2c9194131A4E0BFaCbF9E5D6722c873159cb7;
+    address public constant _GROUP_HUB = 0x50B3BF0d95a8dbA57B58C82dFDB5ff6747Cc1a9E;
+    address public constant _GROUP_TOKEN = 0x7fC61D6FCA8D6Ea811637bA58eaf6aB17d50c4d1;
+    address public constant _MEMBER_TOKEN = 0x43bdF3d63e6318A2831FE1116cBA69afd0F05267;
 
     uint64 public constant ONE_MONTH = 30 days;
     uint64 public constant THREE_MONTHS = 90 days;
@@ -53,11 +53,11 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     // all users that have created a profile, ordered by listed time
     EnumerableSetUpgradeable.AddressSet private _users;
     // author address => Profile
-    mapping(address => Profile) public profileByAddress;
+    mapping(address => Profile) private _profileByAddress;
     // author address => PersonalSettings
-    mapping(address => PersonalSettings) public settingsByAddress;
+    mapping(address => PersonalSettings) private _settingsByAddress;
     // author address => Statistics
-    mapping(address => Statistics) public statisticsByAddress;
+    mapping(address => Statistics) private _statisticsByAddress;
 
     // sales volume ranking list, ordered by sales volume(desc)
     uint256[] private _salesVolumeRanking;
@@ -130,7 +130,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function updateProfile(string calldata _name, string calldata _avatar, string calldata _bio) external {
-        Profile storage _profile = profileByAddress[msg.sender];
+        Profile storage _profile = _profileByAddress[msg.sender];
 
         if (bytes(_profile.name).length == 0) {
             // first time to create profile
@@ -154,13 +154,13 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function openUpSubscribeChannel(uint256 _groupId, uint256[3] calldata _prices) external onlyOwner(_groupId) {
-        require(bytes(profileByAddress[msg.sender].name).length > 0, "MindStream: profile not created");
+        require(bytes(_profileByAddress[msg.sender].name).length > 0, "MindStream: profile not created");
 
         for (uint256 i; i < _prices.length; ++i) {
             require(_prices[i] > 0, "MindStream: invalid price");
         }
 
-        PersonalSettings storage _settings = settingsByAddress[msg.sender];
+        PersonalSettings storage _settings = _settingsByAddress[msg.sender];
         require(_settings.subscribeID == 0, "MindStream: already opened");
 
         _settings.subscribeID = _groupId;
@@ -168,7 +168,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function setPrice(uint256[3] calldata _prices) external {
-        PersonalSettings storage _settings = settingsByAddress[msg.sender];
+        PersonalSettings storage _settings = _settingsByAddress[msg.sender];
         require(_settings.subscribeID > 0, "MindStream: subscribe channel not opened");
 
         for (uint256 i; i < _prices.length; ++i) {
@@ -180,7 +180,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function subscribeOrRenew(address _author, TypesOfSubscriptions _type) external payable {
-        PersonalSettings memory _settings = settingsByAddress[_author];
+        PersonalSettings memory _settings = _settingsByAddress[_author];
         uint256 _groupId = _settings.subscribeID;
         uint256 _price = _settings.prices[uint256(_type)];
         require(_groupId > 0 && _price > 0, "MindStream: not subscribable");
@@ -242,6 +242,31 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         amount = _unclaimedFunds[msg.sender];
     }
 
+    function getProfileByAddress(address _author)
+        external
+        view
+        returns (string memory _name, string memory _avatar, string memory _bio, uint256 _createTime)
+    {
+        Profile memory _profile = _profileByAddress[_author];
+        _name = _profile.name;
+        _avatar = _profile.avatar;
+        _bio = _profile.bio;
+        _createTime = _profile.createTime;
+    }
+
+    function getStatusByAddress(address _author)
+        external
+        view
+        returns (uint256 _subscribeID, uint256[3] memory _prices, uint256 _salesVolume, uint256 _salesRevenue)
+    {
+        PersonalSettings memory _settings = _settingsByAddress[_author];
+        _subscribeID = _settings.subscribeID;
+        _prices = _settings.prices;
+        Statistics memory _statistics = _statisticsByAddress[_author];
+        _salesVolume = _statistics.salesVolume;
+        _salesRevenue = _statistics.salesRevenue;
+    }
+
     function getUsersInfo(
         uint256 offset,
         uint256 limit
@@ -271,9 +296,9 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         _statistics = new Statistics[](count);
         for (uint256 i; i < count; ++i) {
             _addrs[i] = _users.at(_totalLength - offset * limit - i - 1); // reverse order
-            _profiles[i] = profileByAddress[_addrs[i]];
-            _settings[i] = settingsByAddress[_addrs[i]];
-            _statistics[i] = statisticsByAddress[_addrs[i]];
+            _profiles[i] = _profileByAddress[_addrs[i]];
+            _settings[i] = _settingsByAddress[_addrs[i]];
+            _statistics[i] = _statisticsByAddress[_addrs[i]];
         }
     }
 
@@ -323,7 +348,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     /*----------------- internal functions -----------------*/
     function _updateSales(address _author, uint256 _price) internal {
-        Statistics storage _statistics = statisticsByAddress[_author];
+        Statistics storage _statistics = _statisticsByAddress[_author];
         // 1. update sales volume
         _statistics.salesVolume += 1;
 

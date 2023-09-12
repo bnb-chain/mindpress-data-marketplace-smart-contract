@@ -25,7 +25,7 @@ contract MindStreamTest is Test {
     receive() external payable {}
 
     function setUp() public {
-        proxyMindStream = 0x55c72Fa6405ECf270bDBF33aa7f87E3189C076E3; // get this from deploy script's log
+        proxyMindStream = 0xA79C43F1a5206d5290AB4e8273BAEc4097bA3FED; // get this from deploy script's log
         crossChain = MindStream(proxyMindStream)._CROSS_CHAIN();
         groupHub = MindStream(proxyMindStream)._GROUP_HUB();
         groupToken = MindStream(proxyMindStream)._GROUP_TOKEN();
@@ -44,7 +44,7 @@ contract MindStreamTest is Test {
         // success case
         MindStream(proxyMindStream).updateProfile("test1", "test2", "test3");
         (string memory _name, string memory _avatar, string memory _bio,) =
-            MindStream(proxyMindStream).profileByAddress(address(this));
+            MindStream(proxyMindStream).getProfileByAddress(address(this));
         assertEq(_name, "test1");
         assertEq(_avatar, "test2");
         assertEq(_bio, "test3");

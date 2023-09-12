@@ -56,9 +56,9 @@ interface IMindStream {
     function BUCKET_CHANNEL_ID() external view returns (uint8);
     function BUCKET_HUB() external view returns (address);
     function CROSS_CHAIN() external view returns (address);
-    function CmnStorageSlots(uint256) external view returns (uint256);
-    function ConfigSlots(uint256) external view returns (uint256);
     function DEFAULT_ADMIN_ROLE() external view returns (bytes32);
+    function EMERGENCY_OPERATOR() external view returns (address);
+    function EMERGENCY_UPGRADE_OPERATOR() external view returns (address);
     function ERC1155Token() external view returns (address);
     function ERC721Token() external view returns (address);
     function ERROR_INSUFFICIENT_VALUE() external view returns (string memory);
@@ -69,13 +69,13 @@ interface IMindStream {
     function GOV_HUB() external view returns (address);
     function GROUP_CHANNEL_ID() external view returns (uint8);
     function GROUP_HUB() external view returns (address);
-    function GroupStorageSlots(uint256) external view returns (uint256);
     function LIGHT_CLIENT() external view returns (address);
     function OBJECT_CHANNEL_ID() external view returns (uint8);
     function OBJECT_HUB() external view returns (address);
+    function ONE_MONTH() external view returns (uint64);
+    function ONE_YEAR() external view returns (uint64);
     function OPERATOR_ROLE() external view returns (bytes32);
     function PROXY_ADMIN() external view returns (address);
-    function PkgQueueSlots(uint256) external view returns (uint256);
     function RELAYER_HUB() external view returns (address);
     function RESOURCE_GROUP() external view returns (uint8);
     function ROLE_CREATE() external view returns (bytes32);
@@ -84,6 +84,7 @@ interface IMindStream {
     function STATUS_FAILED() external view returns (uint32);
     function STATUS_SUCCESS() external view returns (uint32);
     function STATUS_UNEXPECTED() external view returns (uint32);
+    function THREE_MONTHS() external view returns (uint64);
     function TOKEN_HUB() external view returns (address);
     function TRANSFER_IN_CHANNEL_ID() external view returns (uint8);
     function TRANSFER_OUT_CHANNEL_ID() external view returns (uint8);
@@ -105,14 +106,19 @@ interface IMindStream {
     function feeRate() external view returns (uint256);
     function fundWallet() external view returns (address);
     function getMinRelayFee() external returns (uint256 amount);
+    function getProfileByAddress(address _author)
+        external
+        view
+        returns (string memory _name, string memory _avatar, string memory _bio, uint256 _createTime);
     function getRoleAdmin(bytes32 role) external view returns (bytes32);
     function getSalesRevenueRanking() external view returns (address[] memory _addrs, uint256[] memory _revenues);
     function getSalesVolumeRanking() external view returns (address[] memory _addrs, uint256[] memory _volumes);
+    function getStatusByAddress(address _author)
+        external
+        view
+        returns (uint256 _subscribeID, uint256[3] memory _prices, uint256 _salesVolume, uint256 _salesRevenue);
     function getUnclaimedAmount() external view returns (uint256 amount);
-    function getUsersInfo(
-        uint256 offset,
-        uint256 limit
-    )
+    function getUsersInfo(uint256 offset, uint256 limit)
         external
         view
         returns (
@@ -151,10 +157,6 @@ interface IMindStream {
             bytes memory callbackData,
             bytes memory failReason
         );
-    function profileByAddress(address)
-        external
-        view
-        returns (string memory name, string memory avatar, string memory bio, uint256 createTime);
     function removeOperator(address operator) external;
     function renounceRole(bytes32 role, address account) external;
     function retryPackage(uint8) external;
@@ -165,9 +167,7 @@ interface IMindStream {
     function setFeeRate(uint256 _feeRate) external;
     function setFundWallet(address _fundWallet) external;
     function setPrice(uint256[3] memory _prices) external;
-    function settingsByAddress(address) external view returns (uint256 subscribeID);
     function skipPackage(uint8) external;
-    function statisticsByAddress(address) external view returns (uint256 salesVolume, uint256 salesRevenue);
     function subscribeOrRenew(address _author, uint8 _type) external payable;
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
     function transferGasLimit() external view returns (uint256);
