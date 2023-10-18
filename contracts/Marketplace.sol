@@ -18,10 +18,10 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     // greenfield system contracts
-    address public constant _CROSS_CHAIN = 0x77e719b714be09F70D484AB81F70D02B0E182f7d;
-    address public constant _GROUP_HUB = 0xDd9af4573D64324125fCa5Ce13407be79331B7F7;
-    address public constant _GROUP_TOKEN = 0x943FAC6CEBE6e45CE59bA911E5B6447c1a991450;
-    address public constant _MEMBER_TOKEN = 0xAb73f243Be4d0fC5644c822351eC77e85DC2B5Ea;
+    address public constant _CROSS_CHAIN = 0x57b8A375193b2e9c6481f167BaECF1feEf9F7d4B;
+    address public constant _GROUP_HUB = 0x0Bf7D3Ed3F777D7fB8D65Fb21ba4FBD9F584B579;
+    address public constant _GROUP_TOKEN = 0x089AFF7964E435eB2C7b296B371078B18E2C9A35;
+    address public constant _MEMBER_TOKEN = 0x80Dd11998159cbea4BF79650fCc5Da72Ffb51EFc;
 
     /*----------------- storage -----------------*/
     // group ID => item price
@@ -39,16 +39,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     // all listed group _ids, ordered by listed time
     EnumerableSetUpgradeable.UintSet private _listedGroups;
 
-    // sales volume ranking list, ordered by sales volume(desc)
-    uint256[] private _salesVolumeRanking;
-    // group ID corresponding to the sales volume ranking list, ordered by sales volume(desc)
-    uint256[] private _salesVolumeRankingId;
-
-    // sales revenue ranking list, ordered by sales revenue(desc)
-    uint256[] private _salesRevenueRanking;
-    // group ID corresponding to the sales revenue ranking list, ordered by sales revenue(desc)
-    uint256[] private _salesRevenueRankingId;
-
     // user address => user listed group IDs, ordered by listed time
     mapping(address => EnumerableSetUpgradeable.UintSet) private _userListedGroups;
     // user address => user purchased group IDs, ordered by purchased time
@@ -64,6 +54,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     event Delist(address indexed owner, uint256 indexed groupId);
     event Buy(address indexed buyer, uint256 indexed groupId);
     event BuyFailed(address indexed buyer, uint256 indexed groupId);
+    event PriceUpdated(address indexed owner, uint256 indexed groupId, uint256 price);
 
     modifier onlyGroupOwner(uint256 groupId) {
         require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId), "MarketPlace: only group owner");
@@ -86,12 +77,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
         __base_app_init_unchained(_CROSS_CHAIN, _callbackGasLimit, _failureHandleStrategy);
         __group_app_init_unchained(_GROUP_HUB);
-
-        // init sales ranking
-        _salesVolumeRanking = new uint256[](10);
-        _salesVolumeRankingId = new uint256[](10);
-        _salesRevenueRanking = new uint256[](10);
-        _salesRevenueRankingId = new uint256[](10);
     }
 
     /*----------------- external functions -----------------*/
@@ -128,8 +113,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     function setPrice(uint256 groupId, uint256 newPrice) external onlyGroupOwner(groupId) {
         require(prices[groupId] > 0, "MarketPlace: not listed");
         require(newPrice > 0, "MarketPlace: invalid price");
-
         prices[groupId] = newPrice;
+        emit PriceUpdated(msg.sender, groupId, newPrice);
     }
 
     function delist(uint256 groupId) external onlyGroupOwner(groupId) {
@@ -141,30 +126,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         delete salesRevenue[groupId];
         _listedGroups.remove(groupId);
         _userListedGroups[msg.sender].remove(groupId);
-
-        for (uint256 i; i < _salesVolumeRankingId.length; ++i) {
-            if (_salesVolumeRankingId[i] == groupId) {
-                for (uint256 j = i; j < _salesVolumeRankingId.length - 1; ++j) {
-                    _salesVolumeRankingId[j] = _salesVolumeRankingId[j + 1];
-                    _salesVolumeRanking[j] = _salesVolumeRanking[j + 1];
-                }
-                _salesVolumeRankingId[_salesVolumeRankingId.length - 1] = 0;
-                _salesVolumeRanking[_salesVolumeRanking.length - 1] = 0;
-                break;
-            }
-        }
-
-        for (uint256 i; i < _salesRevenueRankingId.length; ++i) {
-            if (_salesRevenueRankingId[i] == groupId) {
-                for (uint256 j = i; j < _salesRevenueRankingId.length - 1; ++j) {
-                    _salesRevenueRankingId[j] = _salesRevenueRankingId[j + 1];
-                    _salesRevenueRanking[j] = _salesRevenueRanking[j + 1];
-                }
-                _salesRevenueRankingId[_salesRevenueRankingId.length - 1] = 0;
-                _salesRevenueRanking[_salesRevenueRankingId.length - 1] = 0;
-                break;
-            }
-        }
 
         emit Delist(msg.sender, groupId);
     }
@@ -218,40 +179,17 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         return (2, "MarketPlace", "b1e2d2364271044a7d918cbfea985d131c12f0a6");
     }
 
+    function getPrice(uint256 groupId) external view returns (uint256 price) {
+        price = prices[groupId];
+        require(price > 0, "MarketPlace: not listed");
+    }
+
     function getMinRelayFee() external returns (uint256 amount) {
         amount = _getTotalFee();
     }
 
     function getUnclaimedAmount() external view returns (uint256 amount) {
         amount = _unclaimedFunds[msg.sender];
-    }
-
-    function getSalesVolumeRanking()
-        external
-        view
-        returns (uint256[] memory _ids, uint256[] memory _volumes, uint256[] memory _dates)
-    {
-        _ids = _salesVolumeRankingId;
-        _volumes = _salesVolumeRanking;
-
-        _dates = new uint256[](_ids.length);
-        for (uint256 i; i < _ids.length; ++i) {
-            _dates[i] = listedDate[_ids[i]];
-        }
-    }
-
-    function getSalesRevenueRanking()
-        external
-        view
-        returns (uint256[] memory _ids, uint256[] memory _revenues, uint256[] memory _dates)
-    {
-        _ids = _salesRevenueRankingId;
-        _revenues = _salesRevenueRanking;
-
-        _dates = new uint256[](_ids.length);
-        for (uint256 i; i < _ids.length; ++i) {
-            _dates[i] = listedDate[_ids[i]];
-        }
     }
 
     function getListed(
@@ -444,49 +382,9 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         // 1. update sales volume
         salesVolume[groupId] += 1;
 
-        uint256 _volume = salesVolume[groupId];
-        for (uint256 i; i < _salesVolumeRanking.length; ++i) {
-            if (_volume > _salesVolumeRanking[i]) {
-                uint256 endIdx = _salesVolumeRanking.length - 1;
-                for (uint256 j = i; j < _salesVolumeRanking.length; ++j) {
-                    if (_salesVolumeRankingId[j] == groupId) {
-                        endIdx = j;
-                        break;
-                    }
-                }
-                for (uint256 k = endIdx; k > i; --k) {
-                    _salesVolumeRanking[k] = _salesVolumeRanking[k - 1];
-                    _salesVolumeRankingId[k] = _salesVolumeRankingId[k - 1];
-                }
-                _salesVolumeRanking[i] = _volume;
-                _salesVolumeRankingId[i] = groupId;
-                break;
-            }
-        }
-
         // 2. update sales revenue
         uint256 _price = prices[groupId];
         salesRevenue[groupId] += _price;
-
-        uint256 _revenue = salesRevenue[groupId];
-        for (uint256 i; i < _salesRevenueRanking.length; ++i) {
-            if (_revenue > _salesRevenueRanking[i]) {
-                uint256 endIdx = _salesRevenueRanking.length - 1;
-                for (uint256 j = i; j < _salesRevenueRanking.length; ++j) {
-                    if (_salesRevenueRankingId[j] == groupId) {
-                        endIdx = j;
-                        break;
-                    }
-                }
-                for (uint256 k = endIdx; k > i; --k) {
-                    _salesRevenueRanking[k] = _salesRevenueRanking[k - 1];
-                    _salesRevenueRankingId[k] = _salesRevenueRankingId[k - 1];
-                }
-                _salesRevenueRanking[i] = _revenue;
-                _salesRevenueRankingId[i] = groupId;
-                break;
-            }
-        }
     }
 
     function _groupGreenfieldCall(

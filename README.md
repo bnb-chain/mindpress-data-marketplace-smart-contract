@@ -1,15 +1,13 @@
-# greenfield-data-marketplace-contracts
+# greenfield-data-marketplace-solidity
 
 Greenfield-data-marketplace is a marketplace protocol for safely and efficiently buying and selling data uploaded in [Greenfield](https://github.com/bnb-chain/greenfield-contracts).
-
-The front-end of the marketplace is available at [greenfield-data-marketplace-frontend](https://github.com/bnb-chain/greenfield-data-marketplace-frontend/).
 
 ## Install
 
 To install dependencies:
 
 ```bash
-git clone --recurse-submodules https://github.com/bnb-chain/data-marketplace-contracts.git && cd greenfield-contracts
+git clone --recurse-submodules https://github.com/bnb-chain/data-marketplace-solidity.git && cd greenfield-contracts
 yarn install
 forge install
 ```
@@ -33,13 +31,5 @@ forge script ./script/1-deploy.s.sol --rpc-url ${RPC_LOCAL} --legacy --broadcast
 Test with foundry after deploying:
 
 ```bash
-forge test --rpc-url ${RPC_LOCAL}
+forge test
 ```
-
-## License
-The data marketplace contracts (i.e. all code inside the `contracts` directory) are licensed under the
-[GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.en.html), also
-included in our repository in the `COPYING` file.
-
-## Disclaimer
-The software and related documentation are under active development, all subject to potential future change without notification and not ready for production use. The code and security audit have not been fully completed and not ready for any bug bounty. We advise you to be careful and experiment on the network at your own risk. Stay safe out there.
