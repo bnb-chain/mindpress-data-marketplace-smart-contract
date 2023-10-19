@@ -152,10 +152,10 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     /*----------------- view functions -----------------*/
     function versionInfo()
-    external
-    pure
-    override
-    returns (uint256 version, string memory name, string memory description)
+        external
+        pure
+        override
+        returns (uint256 version, string memory name, string memory description)
     {
         return (2, "MarketPlace", "b1e2d2364271044a7d918cbfea985d131c12f0a6");
     }

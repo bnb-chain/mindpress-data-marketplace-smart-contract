@@ -43,7 +43,9 @@ contract MarketplaceTest is Test {
         vm.etch(implMarketplace, implCode);
 
         vm.startPrank(address(owner));
-        ProxyAdmin(address(proxyAdmin)).upgrade(ITransparentUpgradeableProxy(proxyMarketplace), address(implMarketplace));
+        ProxyAdmin(address(proxyAdmin)).upgrade(
+            ITransparentUpgradeableProxy(proxyMarketplace), address(implMarketplace)
+        );
         vm.stopPrank();
 
         crossChain = IMarketplace(proxyMarketplace)._CROSS_CHAIN();
