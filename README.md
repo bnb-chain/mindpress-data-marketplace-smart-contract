@@ -1,13 +1,13 @@
 # mind-marketplace-contract
 
-Greenfield-data-marketplace is a marketplace protocol for safely and efficiently buying and selling data uploaded in [Greenfield](https://github.com/bnb-chain/greenfield-contracts).
+Mind marketplace is a marketplace protocol for safely and efficiently buying and selling data uploaded in [Greenfield](https://github.com/bnb-chain/greenfield).
 
 ## Install
 
 To install dependencies:
 
 ```bash
-git clone --recurse-submodules https://github.com/bnb-chain/data-marketplace-solidity.git && cd greenfield-contracts
+git clone --recurse-submodules https://github.com/bnb-chain/mind-marketplace-contract.git && cd mind-marketplace-contract
 yarn install
 forge install
 ```
