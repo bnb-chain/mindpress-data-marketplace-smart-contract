@@ -1,4 +1,4 @@
-# greenfield-data-marketplace-solidity
+# mind-marketplace-contract
 
 Greenfield-data-marketplace is a marketplace protocol for safely and efficiently buying and selling data uploaded in [Greenfield](https://github.com/bnb-chain/greenfield-contracts).
 
