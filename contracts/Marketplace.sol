@@ -26,22 +26,11 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     /*----------------- storage -----------------*/
     // group ID => item price
     mapping(uint256 => uint256) public prices;
-    // group ID => total sales volume
-    mapping(uint256 => uint256) public salesVolume;
-    // group ID => total sales revenue
-    mapping(uint256 => uint256) public salesRevenue;
-    // group ID => listed date
-    mapping(uint256 => uint256) public listedDate;
 
     // address => unclaimed amount
     mapping(address => uint256) private _unclaimedFunds;
 
-    // all listed group _ids, ordered by listed time
-    EnumerableSetUpgradeable.UintSet private _listedGroups;
-
-    // user address => user listed group IDs, ordered by listed time
-    mapping(address => EnumerableSetUpgradeable.UintSet) private _userListedGroups;
-    // user address => user purchased group IDs, ordered by purchased time
+    // user address => user purchased group IDs, to check whether user has purchased a group
     mapping(address => EnumerableSetUpgradeable.UintSet) private _userPurchasedGroups;
 
     address public fundWallet;
@@ -103,9 +92,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         require(price > 0, "Marketplace: invalid price");
 
         prices[groupId] = price;
-        listedDate[groupId] = block.timestamp;
-        _listedGroups.add(groupId);
-        _userListedGroups[msg.sender].add(groupId);
 
         emit List(msg.sender, groupId, price);
     }
@@ -121,11 +107,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         require(prices[groupId] > 0, "MarketPlace: not listed");
 
         delete prices[groupId];
-        delete listedDate[groupId];
-        delete salesVolume[groupId];
-        delete salesRevenue[groupId];
-        _listedGroups.remove(groupId);
-        _userListedGroups[msg.sender].remove(groupId);
 
         emit Delist(msg.sender, groupId);
     }
@@ -171,10 +152,10 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     /*----------------- view functions -----------------*/
     function versionInfo()
-        external
-        pure
-        override
-        returns (uint256 version, string memory name, string memory description)
+    external
+    pure
+    override
+    returns (uint256 version, string memory name, string memory description)
     {
         return (2, "MarketPlace", "b1e2d2364271044a7d918cbfea985d131c12f0a6");
     }
@@ -190,125 +171,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     function getUnclaimedAmount() external view returns (uint256 amount) {
         amount = _unclaimedFunds[msg.sender];
-    }
-
-    function getListed(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (uint256[] memory _ids, uint256[] memory _dates, uint256 _totalLength) {
-        _totalLength = _listedGroups.length();
-        if (offset >= _totalLength) {
-            return (_ids, _dates, _totalLength);
-        }
-
-        uint256 count = _totalLength - offset;
-        if (count > limit) {
-            count = limit;
-        }
-        _ids = new uint256[](count);
-        _dates = new uint256[](count);
-        for (uint256 i; i < count; ++i) {
-            _ids[i] = _listedGroups.at(_totalLength - offset - i - 1); // reverse order
-            _dates[i] = listedDate[_ids[i]];
-        }
-    }
-
-    function getSalesRevenue(
-        uint256 offset,
-        uint256 limit
-    )
-        external
-        view
-        returns (uint256[] memory _ids, uint256[] memory _revenues, uint256[] memory _dates, uint256 _totalLength)
-    {
-        _totalLength = _listedGroups.length();
-        if (offset >= _totalLength) {
-            return (_ids, _revenues, _dates, _totalLength);
-        }
-
-        uint256 count = _totalLength - offset;
-        if (count > limit) {
-            count = limit;
-        }
-        _ids = new uint256[](count);
-        _revenues = new uint256[](count);
-        _dates = new uint256[](count);
-        for (uint256 i; i < count; ++i) {
-            _ids[i] = _listedGroups.at(offset + i);
-            _revenues[i] = salesRevenue[_ids[i]];
-            _dates[i] = listedDate[_ids[i]];
-        }
-    }
-
-    function getSalesVolume(
-        uint256 offset,
-        uint256 limit
-    )
-        external
-        view
-        returns (uint256[] memory _ids, uint256[] memory _volumes, uint256[] memory _dates, uint256 _totalLength)
-    {
-        _totalLength = _listedGroups.length();
-        if (offset >= _totalLength) {
-            return (_ids, _volumes, _dates, _totalLength);
-        }
-
-        uint256 count = _totalLength - offset;
-        if (count > limit) {
-            count = limit;
-        }
-        _ids = new uint256[](count);
-        _volumes = new uint256[](count);
-        _dates = new uint256[](count);
-        for (uint256 i; i < count; ++i) {
-            _ids[i] = _listedGroups.at(offset + i);
-            _volumes[i] = salesVolume[_ids[i]];
-            _dates[i] = listedDate[_ids[i]];
-        }
-    }
-
-    function getUserPurchased(
-        address user,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (uint256[] memory _ids, uint256[] memory _dates, uint256 _totalLength) {
-        _totalLength = _userPurchasedGroups[user].length();
-        if (offset >= _totalLength) {
-            return (_ids, _dates, _totalLength);
-        }
-
-        uint256 count = _totalLength - offset;
-        if (count > limit) {
-            count = limit;
-        }
-        _ids = new uint256[](count);
-        _dates = new uint256[](count);
-        for (uint256 i; i < count; ++i) {
-            _ids[i] = _userPurchasedGroups[user].at(offset + i);
-            _dates[i] = listedDate[_ids[i]];
-        }
-    }
-
-    function getUserListed(
-        address user,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (uint256[] memory _ids, uint256[] memory _dates, uint256 _totalLength) {
-        _totalLength = _userListedGroups[user].length();
-        if (offset >= _totalLength) {
-            return (_ids, _dates, _totalLength);
-        }
-
-        uint256 count = _totalLength - offset;
-        if (count > limit) {
-            count = limit;
-        }
-        _ids = new uint256[](count);
-        _dates = new uint256[](count);
-        for (uint256 i; i < count; ++i) {
-            _ids[i] = _userListedGroups[user].at(offset + i);
-            _dates[i] = listedDate[_ids[i]];
-        }
     }
 
     /*----------------- admin functions -----------------*/
@@ -378,15 +240,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         IGroupHub(_GROUP_HUB).updateGroup{value: amount}(updatePkg, callbackGasLimit, _extraData);
     }
 
-    function _updateSales(uint256 groupId) internal {
-        // 1. update sales volume
-        salesVolume[groupId] += 1;
-
-        // 2. update sales revenue
-        uint256 _price = prices[groupId];
-        salesRevenue[groupId] += _price;
-    }
-
     function _groupGreenfieldCall(
         uint32 status,
         uint8 operationType,
@@ -412,7 +265,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
                 _unclaimedFunds[owner] += price - feeRateAmount;
             }
             _userPurchasedGroups[buyer].add(_tokenId);
-            _updateSales(_tokenId);
             emit Buy(buyer, _tokenId);
         } else {
             (bool success,) = buyer.call{gas: transferGasLimit, value: price}("");
