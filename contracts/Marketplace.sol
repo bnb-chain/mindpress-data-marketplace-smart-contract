@@ -30,9 +30,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     // address => unclaimed amount
     mapping(address => uint256) private _unclaimedFunds;
 
-    // user address => user purchased group IDs, to check whether user has purchased a group
-    mapping(address => EnumerableSetUpgradeable.UintSet) private _userPurchasedGroups;
-
     address public fundWallet;
 
     uint256 public transferGasLimit; // 2300 for now
@@ -114,7 +111,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     function buy(uint256 groupId, address refundAddress) external payable {
         uint256 price = prices[groupId];
         require(price > 0, "MarketPlace: not listed");
-        require(!_userPurchasedGroups[msg.sender].contains(groupId), "MarketPlace: already purchased");
         require(msg.value >= prices[groupId] + _getTotalFee(), "MarketPlace: insufficient fund");
 
         _buy(groupId, refundAddress, msg.value - price);
@@ -126,7 +122,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint256 amount;
         for (uint256 i; i < groupIds.length; ++i) {
             require(prices[groupIds[i]] > 0, "MarketPlace: not listed");
-            require(!_userPurchasedGroups[msg.sender].contains(groupIds[i]), "MarketPlace: already purchased");
 
             amount = prices[groupIds[i]] + relayFee;
             require(receivedValue >= amount, "MarketPlace: insufficient fund");
@@ -264,7 +259,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             if (!success) {
                 _unclaimedFunds[owner] += price - feeRateAmount;
             }
-            _userPurchasedGroups[buyer].add(_tokenId);
             emit Buy(buyer, _tokenId);
         } else {
             (bool success,) = buyer.call{gas: transferGasLimit, value: price}("");
