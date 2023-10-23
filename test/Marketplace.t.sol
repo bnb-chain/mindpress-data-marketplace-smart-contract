@@ -13,6 +13,7 @@ contract MarketplaceTest is Test {
 
     address public operator;
     address public proxyMarketplace;
+    address public proxyAdmin;
 
     address public owner;
     address public crossChain;
@@ -22,15 +23,31 @@ contract MarketplaceTest is Test {
     event List(address indexed owner, uint256 indexed groupId, uint256 price);
     event Delist(address indexed owner, uint256 indexed groupId);
     event UpdateSubmitted(address owner, address operator, uint256 id, uint8 opType, address[] members);
+    event PriceUpdated(address indexed owner, uint256 indexed groupId, uint256 price);
 
     receive() external payable {}
 
     function setUp() public {
+        vm.createSelectFork("test");
+
         uint256 privateKey = uint256(vm.envBytes32("OWNER_PRIVATE_KEY"));
         owner = vm.addr(privateKey);
         console.log("owner: %s", owner);
 
-        proxyMarketplace = 0x0CC077f821394E49886A2Ef24B5Ec0DDE6aF4d65; // get this from deploy script's log
+        proxyMarketplace = 0x31198b59CE7403c29124d919f6735fb040Ef7fD1; // get this from deploy script's log
+        proxyAdmin = 0xeb45581EF63E2fa22b03b0d6f681183f0Be08362;
+        owner = 0xdF87F0e2B8519Ea2DD4aBd8B639cdD628497eD25;
+
+        address implMarketplace = address(0);
+        bytes memory implCode = vm.getDeployedCode("Marketplace.sol");
+        vm.etch(implMarketplace, implCode);
+
+        vm.startPrank(address(owner));
+        ProxyAdmin(address(proxyAdmin)).upgrade(
+            ITransparentUpgradeableProxy(proxyMarketplace), address(implMarketplace)
+        );
+        vm.stopPrank();
+
         crossChain = IMarketplace(proxyMarketplace)._CROSS_CHAIN();
         groupHub = IMarketplace(proxyMarketplace)._GROUP_HUB();
         groupToken = IMarketplace(proxyMarketplace)._GROUP_TOKEN();
@@ -58,6 +75,28 @@ contract MarketplaceTest is Test {
         vm.expectEmit(true, true, false, true, proxyMarketplace);
         emit List(address(this), tokenId, 1e18);
         IMarketplace(proxyMarketplace).list(tokenId, 1e18);
+    }
+
+    function testSetPrice(uint256 tokenId) public {
+        vm.assume(!IERC721NonTransferable(groupToken).exists(tokenId));
+
+        vm.startPrank(groupHub);
+        IERC721NonTransferable(groupToken).mint(address(this), tokenId);
+        vm.stopPrank();
+
+        ICmnHub(groupHub).grant(proxyMarketplace, 4, 0);
+        IMarketplace(proxyMarketplace).list(tokenId, 1e18);
+
+        // failed with not group owner
+        vm.startPrank(address(0x1234));
+        vm.expectRevert("MarketPlace: only group owner");
+        IMarketplace(proxyMarketplace).setPrice(tokenId, 2e18);
+        vm.stopPrank();
+
+        // success case
+        vm.expectEmit(true, true, false, true, proxyMarketplace);
+        emit PriceUpdated(address(this), tokenId, 2e18);
+        IMarketplace(proxyMarketplace).setPrice(tokenId, 2e18);
     }
 
     function testDelist(uint256 tokenId) public {
