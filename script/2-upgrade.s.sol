@@ -7,24 +7,18 @@ import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import "../contracts/interface/IMarketplace.sol";
-import {Marketplace} from "../contracts/Marketplace.sol";
+import { Marketplace } from "../contracts/Marketplace.sol";
 
 contract UpgradeScript is Script {
     address public operator;
-
-    address public crossChain;
-    address public groupHub;
-    address public owner;
-    address public fundWallet;
-
     address public proxyAdmin;
     address public proxyMarketPlace;
     address public oldImplMarketPlace;
 
     function setUp() public {
         uint256 privateKey = uint256(vm.envBytes32("OWNER_PRIVATE_KEY"));
-        owner = vm.addr(privateKey);
-        console.log("init owner: %s", owner);
+        operator = vm.addr(privateKey);
+        console.log("operator: %s", operator);
 
         proxyAdmin = vm.envAddress("PROXY_ADMIN");
         console.log("proxyAdmin address: %s", proxyAdmin);
@@ -37,7 +31,7 @@ contract UpgradeScript is Script {
     }
 
     function run() public {
-        vm.startBroadcast(owner);
+        vm.startBroadcast(operator);
         Marketplace newImpl = new Marketplace();
         require(address(newImpl) != oldImplMarketPlace, "same impl address");
 

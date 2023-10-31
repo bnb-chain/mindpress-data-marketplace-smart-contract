@@ -7,9 +7,9 @@ Mind marketplace is a marketplace protocol for safely and efficiently buying and
 To install dependencies:
 
 ```bash
-git clone --recurse-submodules https://github.com/bnb-chain/mind-marketplace-contract.git && cd mind-marketplace-contract
+git clone https://github.com/bnb-chain/mind-marketplace-contract.git && cd mind-marketplace-contract
 yarn install
-forge install
+forge install --no-git --no-commit foundry-rs/forge-std@v1.7.1
 ```
 
 ## Deploy
@@ -23,7 +23,7 @@ cp .env.example .env
 2. Deploy with foundry.
 
 ```bash
-forge script ./script/1-deploy.s.sol --rpc-url ${RPC_LOCAL} --legacy --broadcast --private-key ${OP_PRIVATE_KEY}
+forge script ./script/1-deploy.s.sol --rpc-url ${RPC_TESTNET} --legacy --broadcast --private-key ${OP_PRIVATE_KEY}
 ```
 
 ## Test

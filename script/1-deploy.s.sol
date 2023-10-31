@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 
 import "../contracts/Deployer.sol";
 import "../contracts/Marketplace.sol";
+import "../contracts/MarketplaceBadge.sol";
 
 contract DeployScript is Script {
     uint256 public constant callbackGasLimit = 1_000_000; // TODO: TBD
@@ -35,15 +36,22 @@ contract DeployScript is Script {
         console.log("deployer address: %s", address(deployer));
         Marketplace marketplace = new Marketplace();
         console.log("implMarketplace address: %s", address(marketplace));
+        MarketplaceBadge badge = new MarketplaceBadge();
+        console.log("implMarketplaceBadge address: %s", address(badge));
 
         address proxyAdmin = deployer.calcCreateAddress(address(deployer), uint8(1));
         require(proxyAdmin == deployer.proxyAdmin(), "wrong proxyAdmin address");
         console.log("proxyAdmin address: %s", proxyAdmin);
-        address proxyMarketplace = deployer.calcCreateAddress(address(deployer), uint8(2));
+        address proxyBadge = deployer.calcCreateAddress(address(deployer), uint8(2));
+        require(proxyBadge == deployer.proxyBadge(), "wrong proxyBadge address");
+        console.log("proxyBadge address: %s", proxyBadge);
+        address proxyMarketplace = deployer.calcCreateAddress(address(deployer), uint8(3));
         require(proxyMarketplace == deployer.proxyMarketplace(), "wrong proxyMarketplace address");
         console.log("proxyMarketplace address: %s", proxyMarketplace);
 
-        deployer.deploy(address(marketplace), initOwner, fundWallet, tax, callbackGasLimit, failureHandleStrategy);
+        deployer.deploy(
+            address(badge), address(marketplace), initOwner, fundWallet, tax, callbackGasLimit, failureHandleStrategy
+        );
         vm.stopBroadcast();
     }
 }

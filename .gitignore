@@ -4,6 +4,7 @@ out/
 broadcast/
 
 node_modules/
+lib/
 
 # Dotenv file
 .env
