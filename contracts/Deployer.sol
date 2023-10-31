@@ -5,9 +5,12 @@ import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import "./Marketplace.sol";
+import "./MarketplaceBadge.sol";
 
 contract Deployer {
     address public proxyAdmin;
+    address public proxyBadge;
+    address public implBadge;
     address public proxyMarketplace;
     address public implMarketplace;
 
@@ -20,14 +23,15 @@ contract Deployer {
             c. Deploy the proxy contracts, checking if they are equal to the generated addresses before
         */
         proxyAdmin = calcCreateAddress(address(this), uint8(1));
-        proxyMarketplace = calcCreateAddress(address(this), uint8(2));
+        proxyBadge = calcCreateAddress(address(this), uint8(2));
+        proxyMarketplace = calcCreateAddress(address(this), uint8(3));
 
-        // 1. proxyAdmin
         address deployedProxyAdmin = address(new ProxyAdmin());
         require(deployedProxyAdmin == proxyAdmin, "invalid proxyAdmin address");
     }
 
     function deploy(
+        address _implBadge,
         address _implMarketplace,
         address _owner,
         address _fundWallet,
@@ -43,20 +47,27 @@ contract Deployer {
         require(_tax <= 1000, "invalid tax");
         require(_callbackGasLimit > 0, "invalid callbackGasLimit");
 
+        require(_isContract(_implBadge), "invalid implBadge");
+        implBadge = _implBadge;
         require(_isContract(_implMarketplace), "invalid implMarketplace");
         implMarketplace = _implMarketplace;
 
-        // 1. deploy proxy contract
+        // 1. deploy proxy badge contract
+        address deployedProxyBadge = address(new TransparentUpgradeableProxy(implBadge, proxyAdmin, ""));
+        require(deployedProxyBadge == proxyBadge, "invalid proxyBadge address");
+
+        // 2. deploy proxy marketplace contract
         address deployedProxyMarketplace = address(new TransparentUpgradeableProxy(implMarketplace, proxyAdmin, ""));
         require(deployedProxyMarketplace == proxyMarketplace, "invalid proxyMarketplace address");
 
-        // 2. transfer admin ownership
+        // 3. transfer admin ownership
         ProxyAdmin(proxyAdmin).transferOwnership(_owner);
         require(ProxyAdmin(proxyAdmin).owner() == _owner, "invalid proxyAdmin owner");
 
-        // 3. init marketplace
+        // 4. init
+        MarketplaceBadge(proxyBadge).initialize("", proxyMarketplace, _owner);
         Marketplace(payable(proxyMarketplace)).initialize(
-            _owner, _fundWallet, _tax, _callbackGasLimit, _failureHandleStrategy
+            _owner, _fundWallet, _tax, proxyBadge, _callbackGasLimit, _failureHandleStrategy
         );
     }
 

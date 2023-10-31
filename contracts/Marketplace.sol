@@ -5,23 +5,20 @@ import "@bnb-chain/greenfield-contracts/contracts/interface/IERC721NonTransferab
 import "@bnb-chain/greenfield-contracts/contracts/interface/IERC1155NonTransferable.sol";
 import "@bnb-chain/greenfield-contracts/contracts/interface/IGnfdAccessControl.sol";
 import "@bnb-chain/greenfield-contracts-sdk/GroupApp.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
-    using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
-    using DoubleEndedQueueUpgradeable for DoubleEndedQueueUpgradeable.Bytes32Deque;
-
+contract Marketplace is ReentrancyGuardUpgradeable, AccessControlUpgradeable, GroupApp {
     /*----------------- constants -----------------*/
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
+    uint256 public constant LIST_BADGE_ID = 1;
+
     // greenfield system contracts
-    address public constant _CROSS_CHAIN = 0x57b8A375193b2e9c6481f167BaECF1feEf9F7d4B;
-    address public constant _GROUP_HUB = 0x0Bf7D3Ed3F777D7fB8D65Fb21ba4FBD9F584B579;
-    address public constant _GROUP_TOKEN = 0x089AFF7964E435eB2C7b296B371078B18E2C9A35;
-    address public constant _MEMBER_TOKEN = 0x80Dd11998159cbea4BF79650fCc5Da72Ffb51EFc;
+    address public constant _CROSS_CHAIN = 0xa5B2c9194131A4E0BFaCbF9E5D6722c873159cb7;
+    address public constant _GROUP_HUB = 0x50B3BF0d95a8dbA57B58C82dFDB5ff6747Cc1a9E;
+    address public constant _GROUP_TOKEN = 0x7fC61D6FCA8D6Ea811637bA58eaf6aB17d50c4d1;
+    address public constant _MEMBER_TOKEN = 0x43bdF3d63e6318A2831FE1116cBA69afd0F05267;
 
     /*----------------- storage -----------------*/
     // group ID => item price
@@ -34,6 +31,9 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     uint256 public transferGasLimit; // 2300 for now
     uint256 public feeRate; // 10000 = 100%
+
+    // ERC1155 badge address
+    address public badge;
 
     /*----------------- event/modifier -----------------*/
     event List(address indexed owner, uint256 indexed groupId, uint256 price);
@@ -51,6 +51,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         address _initAdmin,
         address _fundWallet,
         uint256 _feeRate,
+        address _badge,
         uint256 _callbackGasLimit,
         uint8 _failureHandleStrategy
     ) public initializer {
@@ -60,6 +61,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         transferGasLimit = 2300;
         fundWallet = _fundWallet;
         feeRate = _feeRate;
+        badge = _badge;
 
         __base_app_init_unchained(_CROSS_CHAIN, _callbackGasLimit, _failureHandleStrategy);
         __group_app_init_unchained(_GROUP_HUB);
@@ -89,6 +91,11 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         require(price > 0, "Marketplace: invalid price");
 
         prices[groupId] = price;
+
+        // mint a LIST_BADGE to the owner if it's the first time to list
+        if (IERC1155NonTransferable(badge).balanceOf(msg.sender, LIST_BADGE_ID) == 0) {
+            IERC1155NonTransferable(badge).mint(msg.sender, LIST_BADGE_ID, 1, "");
+        }
 
         emit List(msg.sender, groupId, price);
     }
@@ -130,7 +137,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             _buy(groupIds[i], refundAddress, relayFee);
         }
         if (receivedValue > 0) {
-            (bool success,) = payable(refundAddress).call{gas: transferGasLimit, value: receivedValue}("");
+            (bool success,) = refundAddress.call{ gas: transferGasLimit, value: receivedValue }("");
             if (!success) {
                 _unclaimedFunds[refundAddress] += receivedValue;
             }
@@ -141,7 +148,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint256 amount = _unclaimedFunds[msg.sender];
         require(amount > 0, "MarketPlace: no unclaimed funds");
         _unclaimedFunds[msg.sender] = 0;
-        (bool success,) = msg.sender.call{value: amount}("");
+        (bool success,) = msg.sender.call{ value: amount }("");
         require(success, "MarketPlace: claim failed");
     }
 
@@ -152,7 +159,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         override
         returns (uint256 version, string memory name, string memory description)
     {
-        return (2, "MarketPlace", "b1e2d2364271044a7d918cbfea985d131c12f0a6");
+        return (1, "Marketplace", "first version");
     }
 
     function getPrice(uint256 groupId) external view returns (uint256 price) {
@@ -232,7 +239,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             callbackData: callbackData
         });
 
-        IGroupHub(_GROUP_HUB).updateGroup{value: amount}(updatePkg, callbackGasLimit, _extraData);
+        IGroupHub(_GROUP_HUB).updateGroup{ value: amount }(updatePkg, callbackGasLimit, _extraData);
     }
 
     function _groupGreenfieldCall(
@@ -253,15 +260,15 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
         if (_status == STATUS_SUCCESS) {
             uint256 feeRateAmount = (price * feeRate) / 10_000;
-            (bool success,) = fundWallet.call{value: feeRateAmount}("");
+            (bool success,) = fundWallet.call{ value: feeRateAmount }("");
             require(success, "MarketPlace: transfer fee failed");
-            (success,) = owner.call{gas: transferGasLimit, value: price - feeRateAmount}("");
+            (success,) = owner.call{ gas: transferGasLimit, value: price - feeRateAmount }("");
             if (!success) {
                 _unclaimedFunds[owner] += price - feeRateAmount;
             }
             emit Buy(buyer, _tokenId);
         } else {
-            (bool success,) = buyer.call{gas: transferGasLimit, value: price}("");
+            (bool success,) = buyer.call{ gas: transferGasLimit, value: price }("");
             if (!success) {
                 _unclaimedFunds[buyer] += price;
             }

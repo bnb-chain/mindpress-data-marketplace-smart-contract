@@ -25,7 +25,7 @@ contract MarketplaceTest is Test {
     event UpdateSubmitted(address owner, address operator, uint256 id, uint8 opType, address[] members);
     event PriceUpdated(address indexed owner, uint256 indexed groupId, uint256 price);
 
-    receive() external payable {}
+    receive() external payable { }
 
     function setUp() public {
         vm.createSelectFork("test");
@@ -144,14 +144,14 @@ contract MarketplaceTest is Test {
 
         // failed with not enough fund
         vm.expectRevert("MarketPlace: insufficient fund");
-        IMarketplace(proxyMarketplace).buy{value: 1 ether}(tokenId, address(this));
+        IMarketplace(proxyMarketplace).buy{ value: 1 ether }(tokenId, address(this));
 
         // success case
         address[] memory members = new address[](1);
         members[0] = address(this);
         vm.expectEmit(true, true, true, true, groupHub);
         emit UpdateSubmitted(_owner, proxyMarketplace, tokenId, 0, members);
-        IMarketplace(proxyMarketplace).buy{value: 1e18 + relayFee}(tokenId, address(this));
+        IMarketplace(proxyMarketplace).buy{ value: 1e18 + relayFee }(tokenId, address(this));
     }
 
     function _getTotalFee() internal returns (uint256) {
