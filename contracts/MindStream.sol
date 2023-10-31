@@ -59,6 +59,14 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     // author address => Statistics
     mapping(address => Statistics) private _statisticsByAddress;
 
+    // authors that opened up subscribe channels, ordered by time
+    EnumerableSetUpgradeable.AddressSet private _authorsWithSubscribeChannel;
+
+    // user address => user subscribed authors, ordered by purchased time
+    mapping(address => EnumerableSetUpgradeable.AddressSet) private _userSubscriptionList;
+    // user address => author address => expiration time
+    mapping(address => mapping(address => uint64)) private _userSubscriptionExpiration;
+
     // sales volume ranking list, ordered by sales volume(desc)
     uint256[] private _salesVolumeRanking;
     // author address corresponding to the sales volume ranking list, ordered by sales volume(desc)
@@ -71,6 +79,9 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     // address => unclaimed amount
     mapping(address => uint256) private _unclaimedFunds;
+
+    // type of subscription => expiration time
+    mapping(TypesOfSubscriptions => uint64) private _subscriptionExpirationTime;
 
     address public fundWallet;
 
@@ -104,6 +115,10 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
         __base_app_init_unchained(_CROSS_CHAIN, _callbackGasLimit, _failureHandleStrategy);
         __group_app_init_unchained(_GROUP_HUB);
+
+        _subscriptionExpirationTime[TypesOfSubscriptions.OneMonth] = ONE_MONTH;
+        _subscriptionExpirationTime[TypesOfSubscriptions.ThreeMonths] = THREE_MONTHS;
+        _subscriptionExpirationTime[TypesOfSubscriptions.OneYear] = ONE_YEAR;
 
         // init sales ranking
         _salesVolumeRanking = new uint256[](10);
@@ -154,6 +169,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function openUpSubscribeChannel(uint256 _groupId, uint256[3] calldata _prices) external onlyOwner(_groupId) {
+        require(IGnfdAccessControl(_GROUP_HUB).hasRole(ROLE_UPDATE, msg.sender, address(this)), "Marketplace: no grant");
         require(bytes(_profileByAddress[msg.sender].name).length > 0, "MindStream: profile not created");
 
         for (uint256 i; i < _prices.length; ++i) {
@@ -161,10 +177,11 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         }
 
         PersonalSettings storage _settings = _settingsByAddress[msg.sender];
-        require(_settings.subscribeID == 0, "MindStream: already opened");
+        require(_settings.subscribeID == 0, "MindStream: subscription already opened");
 
         _settings.subscribeID = _groupId;
         _settings.prices = _prices;
+        _authorsWithSubscribeChannel.add(msg.sender);
     }
 
     function setPrice(uint256[3] calldata _prices) external {
@@ -189,15 +206,12 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         address buyer = msg.sender;
         address[] memory members = new address[](1);
         uint64[] memory memberExpiration = new uint64[](1);
+        uint64 existedExpiration = _userSubscriptionExpiration[buyer][_author] > uint64(block.timestamp)
+            ? _userSubscriptionExpiration[buyer][_author]
+            : uint64(block.timestamp);
+        memberExpiration[0] = existedExpiration + _subscriptionExpirationTime[_type];
         members[0] = buyer;
-        if (_type == TypesOfSubscriptions.OneMonth) {
-            memberExpiration[0] = uint64(block.timestamp + ONE_MONTH);
-        } else if (_type == TypesOfSubscriptions.ThreeMonths) {
-            memberExpiration[0] = uint64(block.timestamp + THREE_MONTHS);
-        } else {
-            memberExpiration[0] = uint64(block.timestamp + ONE_YEAR);
-        }
-        bytes memory callbackData = abi.encode(_author, buyer, _price);
+        bytes memory callbackData = abi.encode(_author, buyer, _price, memberExpiration);
         UpdateGroupSynPackage memory updatePkg = UpdateGroupSynPackage({
             operator: _author,
             id: _groupId,
@@ -286,10 +300,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
             return (_addrs, _profiles, _settings, _statistics, _totalLength);
         }
 
-        uint256 count = _totalLength - offset * limit;
-        if (count > limit) {
-            count = limit;
-        }
+        uint256 count = (_totalLength - offset) > limit ? limit : (_totalLength - offset);
         _addrs = new address[](count);
         _profiles = new Profile[](count);
         _settings = new PersonalSettings[](count);
@@ -299,6 +310,41 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
             _profiles[i] = _profileByAddress[_addrs[i]];
             _settings[i] = _settingsByAddress[_addrs[i]];
             _statistics[i] = _statisticsByAddress[_addrs[i]];
+        }
+    }
+
+    function getSubscribableAuthors(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory _authors, uint256 _totalLength) {
+        _totalLength = _authorsWithSubscribeChannel.length();
+        if (offset >= _totalLength) {
+            return (_authors, _totalLength);
+        }
+
+        uint256 count = (_totalLength - offset) > limit ? limit : (_totalLength - offset);
+        _authors = new address[](count);
+        for (uint256 i; i < count; ++i) {
+            _authors[i] = _authorsWithSubscribeChannel.at(_totalLength - offset - i - 1); // reverse order
+        }
+    }
+
+    function getUserSubscribed(
+        address user,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (address[] memory _authors, uint64[] memory _expirations, uint256 _totalLength) {
+        _totalLength = _userSubscriptionList[user].length();
+        if (offset >= _totalLength) {
+            return (_authors, _expirations, _totalLength);
+        }
+
+        uint256 count = (_totalLength - offset) > limit ? limit : (_totalLength - offset);
+        _authors = new address[](count);
+        _expirations = new uint64[](count);
+        for (uint256 i; i < count; ++i) {
+            _authors[i] = _userSubscriptionList[user].at(offset + i);
+            _expirations[i] = _userSubscriptionExpiration[user][_authors[i]];
         }
     }
 
@@ -344,6 +390,10 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     function setFailureHandleStrategy(uint8 _failureHandleStrategy) external onlyRole(OPERATOR_ROLE) {
         _setFailureHandleStrategy(_failureHandleStrategy);
+    }
+
+    function setTransferGasLimit(uint256 _transferGasLimit) external onlyRole(OPERATOR_ROLE) {
+        transferGasLimit = _transferGasLimit;
     }
 
     /*----------------- internal functions -----------------*/
@@ -410,19 +460,23 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function _updateGroupCallback(uint32 _status, uint256, bytes memory _callbackData) internal override {
-        (address _author, address buyer, uint256 _price) = abi.decode(_callbackData, (address, address, uint256));
+        (address _author, address buyer, uint256 _price, uint64 _expiration) =
+            abi.decode(_callbackData, (address, address, uint256, uint64));
 
         if (_status == STATUS_SUCCESS) {
             uint256 feeRateAmount = (_price * feeRate) / 10_000;
-            payable(fundWallet).transfer(feeRateAmount);
-            (bool success,) = payable(_author).call{gas: transferGasLimit, value: _price - feeRateAmount}("");
+            (bool success,) = fundWallet.call{value: feeRateAmount}("");
+            require(success, "MindStream: transfer fee failed");
+            (success,) = _author.call{gas: transferGasLimit, value: _price - feeRateAmount}("");
             if (!success) {
                 _unclaimedFunds[_author] += _price - feeRateAmount;
             }
+            _userSubscriptionList[buyer].add(_author);
+            _userSubscriptionExpiration[buyer][_author] = _expiration;
             _updateSales(_author, _price);
             emit Subscribe(buyer, _author);
         } else {
-            (bool success,) = payable(buyer).call{gas: transferGasLimit, value: _price}("");
+            (bool success,) = buyer.call{gas: transferGasLimit, value: _price}("");
             if (!success) {
                 _unclaimedFunds[buyer] += _price;
             }

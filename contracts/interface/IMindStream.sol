@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
 interface IMindStream {
@@ -69,7 +68,9 @@ interface IMindStream {
     function GOV_HUB() external view returns (address);
     function GROUP_CHANNEL_ID() external view returns (uint8);
     function GROUP_HUB() external view returns (address);
+    function INIT_MAX_CALLBACK_DATA_LENGTH() external view returns (uint256);
     function LIGHT_CLIENT() external view returns (address);
+    function MAX_CALLBACK_GAS_LIMIT() external view returns (uint256);
     function OBJECT_CHANNEL_ID() external view returns (uint8);
     function OBJECT_HUB() external view returns (address);
     function ONE_MONTH() external view returns (uint64);
@@ -117,7 +118,15 @@ interface IMindStream {
         external
         view
         returns (uint256 _subscribeID, uint256[3] memory _prices, uint256 _salesVolume, uint256 _salesRevenue);
+    function getSubscribableAuthors(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory _authors, uint256 _totalLength);
     function getUnclaimedAmount() external view returns (uint256 amount);
+    function getUserSubscribed(address user, uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory _authors, uint64[] memory _expirations, uint256 _totalLength);
     function getUsersInfo(uint256 offset, uint256 limit)
         external
         view
@@ -145,6 +154,7 @@ interface IMindStream {
         uint256 _callbackGasLimit,
         uint8 _failureHandleStrategy
     ) external;
+    function maxCallbackDataLength() external view returns (uint256);
     function openUpSubscribeChannel(uint256 _groupId, uint256[3] memory _prices) external;
     function packageMap(bytes32)
         external
@@ -167,6 +177,7 @@ interface IMindStream {
     function setFeeRate(uint256 _feeRate) external;
     function setFundWallet(address _fundWallet) external;
     function setPrice(uint256[3] memory _prices) external;
+    function setTransferGasLimit(uint256 _transferGasLimit) external;
     function skipPackage(uint8) external;
     function subscribeOrRenew(address _author, uint8 _type) external payable;
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
