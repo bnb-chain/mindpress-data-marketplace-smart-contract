@@ -23,10 +23,11 @@ contract DeployScript is Script {
         operator = vm.addr(privateKey);
         console.log("operator balance: %s", operator.balance / 1e18);
 
-        privateKey = uint256(vm.envBytes32("OWNER_PRIVATE_KEY"));
-        initOwner = vm.addr(privateKey);
-        fundWallet = initOwner;
+        //privateKey = uint256(vm.envBytes32("OWNER_PRIVATE_KEY"));
+        initOwner = 0xbC3380aA2B1f0a7aD4c58b410D6Ec98bFb1e12f1;
+        fundWallet = 0xfBC18196967bEbF94513a85F770BF7b62d97c80E;
         console.log("init owner: %s", initOwner);
+        console.log("init fund wallet: %s", fundWallet);
     }
 
     function run() public {
