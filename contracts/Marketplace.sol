@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
 
-contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
+contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
 
     /*----------------- constants -----------------*/
@@ -95,7 +95,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     event Post(address indexed author, uint256 indexed visibility, string url);
 
     modifier onlyOwner(uint256 _groupId) {
-        require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_groupId), "MindStream: only owner");
+        require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_groupId), "Marketplace: only owner");
         _;
     }
 
@@ -106,7 +106,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         uint256 _callbackGasLimit,
         uint8 _failureHandleStrategy
     ) public initializer {
-        require(_initAdmin != address(0), "MindStream: invalid admin address");
+        require(_initAdmin != address(0), "Marketplace: invalid admin address");
         _grantRole(DEFAULT_ADMIN_ROLE, _initAdmin);
 
         transferGasLimit = 2300;
@@ -135,12 +135,12 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         uint256 resourceId,
         bytes calldata callbackData
     ) external override(GroupApp) {
-        require(msg.sender == _GROUP_HUB, "MindStream: invalid caller");
+        require(msg.sender == _GROUP_HUB, "Marketplace: invalid caller");
 
         if (resourceType == RESOURCE_GROUP) {
             _groupGreenfieldCall(status, operationType, resourceId, callbackData);
         } else {
-            revert("MindStream: invalid resource type");
+            revert("Marketplace: invalid resource type");
         }
     }
 
@@ -149,7 +149,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
         if (bytes(_profile.name).length == 0) {
             // first time to create profile
-            require(bytes(_name).length > 0, "MindStream: name cannot be empty");
+            require(bytes(_name).length > 0, "Marketplace: name cannot be empty");
             _users.add(msg.sender);
             _profile.createTime = block.timestamp;
 
@@ -170,14 +170,14 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     function openUpSubscribeChannel(uint256 _groupId, uint256[3] calldata _prices) external onlyOwner(_groupId) {
         require(IGnfdAccessControl(_GROUP_HUB).hasRole(ROLE_UPDATE, msg.sender, address(this)), "Marketplace: no grant");
-        require(bytes(_profileByAddress[msg.sender].name).length > 0, "MindStream: profile not created");
+        require(bytes(_profileByAddress[msg.sender].name).length > 0, "Marketplace: profile not created");
 
         for (uint256 i; i < _prices.length; ++i) {
-            require(_prices[i] > 0, "MindStream: invalid price");
+            require(_prices[i] > 0, "Marketplace: invalid price");
         }
 
         PersonalSettings storage _settings = _settingsByAddress[msg.sender];
-        require(_settings.subscribeID == 0, "MindStream: subscription already opened");
+        require(_settings.subscribeID == 0, "Marketplace: subscription already opened");
 
         _settings.subscribeID = _groupId;
         _settings.prices = _prices;
@@ -186,7 +186,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     function setPrice(uint256[3] calldata _prices) external {
         PersonalSettings storage _settings = _settingsByAddress[msg.sender];
-        require(_settings.subscribeID > 0, "MindStream: subscribe channel not opened");
+        require(_settings.subscribeID > 0, "Marketplace: subscribe channel not opened");
 
         for (uint256 i; i < _prices.length; ++i) {
             // 0 means no change
@@ -200,8 +200,8 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         PersonalSettings memory _settings = _settingsByAddress[_author];
         uint256 _groupId = _settings.subscribeID;
         uint256 _price = _settings.prices[uint256(_type)];
-        require(_groupId > 0 && _price > 0, "MindStream: not subscribable");
-        require(msg.value >= _price + _getTotalFee(), "MindStream: insufficient fund");
+        require(_groupId > 0 && _price > 0, "Marketplace: not subscribable");
+        require(msg.value >= _price + _getTotalFee(), "Marketplace: insufficient fund");
 
         address buyer = msg.sender;
         address[] memory members = new address[](1);
@@ -232,10 +232,10 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
 
     function claim() external nonReentrant {
         uint256 amount = _unclaimedFunds[msg.sender];
-        require(amount > 0, "MindStream: no unclaimed funds");
+        require(amount > 0, "Marketplace: no unclaimed funds");
         _unclaimedFunds[msg.sender] = 0;
         (bool success,) = msg.sender.call{value: amount}("");
-        require(success, "MindStream: claim failed");
+        require(success, "Marketplace: claim failed");
     }
 
     /*----------------- view functions -----------------*/
@@ -245,7 +245,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         override
         returns (uint256 version, string memory name, string memory description)
     {
-        return (1, "MindStream", "first version");
+        return (1, "Marketplace", "first version");
     }
 
     function getMinRelayFee() external returns (uint256 amount) {
@@ -380,7 +380,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function setFeeRate(uint256 _feeRate) external onlyRole(OPERATOR_ROLE) {
-        require(_feeRate < 10_000, "MindStream: invalid feeRate");
+        require(_feeRate < 10_000, "Marketplace: invalid feeRate");
         feeRate = _feeRate;
     }
 
@@ -455,7 +455,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         if (operationType == TYPE_UPDATE) {
             _updateGroupCallback(status, resourceId, callbackData);
         } else {
-            revert("MindStream: invalid operation type");
+            revert("Marketplace: invalid operation type");
         }
     }
 
@@ -466,7 +466,7 @@ contract MindStream is ReentrancyGuard, AccessControl, GroupApp {
         if (_status == STATUS_SUCCESS) {
             uint256 feeRateAmount = (_price * feeRate) / 10_000;
             (bool success,) = fundWallet.call{value: feeRateAmount}("");
-            require(success, "MindStream: transfer fee failed");
+            require(success, "Marketplace: transfer fee failed");
             (success,) = _author.call{gas: transferGasLimit, value: _price - feeRateAmount}("");
             if (!success) {
                 _unclaimedFunds[_author] += _price - feeRateAmount;

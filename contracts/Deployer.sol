@@ -4,12 +4,12 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 import "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import "./MindStream.sol";
+import "./Marketplace.sol";
 
 contract Deployer {
     address public proxyAdmin;
-    address public proxyMindStream;
-    address public implMindStream;
+    address public proxyMarketplace;
+    address public implMarketplace;
 
     bool public deployed;
 
@@ -20,7 +20,7 @@ contract Deployer {
             c. Deploy the proxy contracts, checking if they are equal to the generated addresses before
         */
         proxyAdmin = calcCreateAddress(address(this), uint8(1));
-        proxyMindStream = calcCreateAddress(address(this), uint8(2));
+        proxyMarketplace = calcCreateAddress(address(this), uint8(2));
 
         // 1. proxyAdmin
         address deployedProxyAdmin = address(new ProxyAdmin());
@@ -28,7 +28,7 @@ contract Deployer {
     }
 
     function deploy(
-        address _implMindStream,
+        address _implMarketplace,
         address _owner,
         address _fundWallet,
         uint256 _tax,
@@ -43,19 +43,19 @@ contract Deployer {
         require(_tax <= 1000, "invalid tax");
         require(_callbackGasLimit > 0, "invalid callbackGasLimit");
 
-        require(_isContract(_implMindStream), "invalid implMindStream");
-        implMindStream = _implMindStream;
+        require(_isContract(_implMarketplace), "invalid implMarketplace");
+        implMarketplace = _implMarketplace;
 
         // 1. deploy proxy contract
-        address deployedProxyMindStream = address(new TransparentUpgradeableProxy(implMindStream, proxyAdmin, ""));
-        require(deployedProxyMindStream == proxyMindStream, "invalid proxyMindStream address");
+        address deployedProxyMarketplace = address(new TransparentUpgradeableProxy(implMarketplace, proxyAdmin, ""));
+        require(deployedProxyMarketplace == proxyMarketplace, "invalid proxyMarketplace address");
 
         // 2. transfer admin ownership
         ProxyAdmin(proxyAdmin).transferOwnership(_owner);
         require(ProxyAdmin(proxyAdmin).owner() == _owner, "invalid proxyAdmin owner");
 
         // 3. init marketplace
-        MindStream(payable(proxyMindStream)).initialize(
+        Marketplace(payable(proxyMarketplace)).initialize(
             _owner, _fundWallet, _tax, _callbackGasLimit, _failureHandleStrategy
         );
     }

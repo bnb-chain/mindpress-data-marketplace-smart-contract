@@ -1,6 +1,6 @@
 pragma solidity ^0.8.0;
 
-interface IMindStream {
+interface IMarketplace {
     event AppHandleAckPkgFailed(address indexed appAddress, bytes32 pkgHash, bytes failReason);
     event AppHandleFailAckPkgFailed(address indexed appAddress, bytes32 pkgHash, bytes failReason);
     event CreateFailed(address indexed creator, uint256 indexed id);

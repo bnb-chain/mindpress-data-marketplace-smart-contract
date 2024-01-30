@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import "forge-std/Script.sol";
 
 import "../contracts/Deployer.sol";
-import "../contracts/MindStream.sol";
+import "../contracts/Marketplace.sol";
 
 contract DeployScript is Script {
     uint256 public constant callbackGasLimit = 1_000_000; // TODO: TBD
@@ -33,17 +33,17 @@ contract DeployScript is Script {
         vm.startBroadcast(operator);
         Deployer deployer = new Deployer();
         console.log("deployer address: %s", address(deployer));
-        MindStream mindStream = new MindStream();
-        console.log("implMindStream address: %s", address(mindStream));
+        Marketplace marketplace = new Marketplace();
+        console.log("implMarketplace address: %s", address(marketplace));
 
         address proxyAdmin = deployer.calcCreateAddress(address(deployer), uint8(1));
         require(proxyAdmin == deployer.proxyAdmin(), "wrong proxyAdmin address");
         console.log("proxyAdmin address: %s", proxyAdmin);
-        address proxyMindStream = deployer.calcCreateAddress(address(deployer), uint8(2));
-        require(proxyMindStream == deployer.proxyMindStream(), "wrong proxyMindStream address");
-        console.log("proxyMindStream address: %s", proxyMindStream);
+        address proxyMarketplace = deployer.calcCreateAddress(address(deployer), uint8(2));
+        require(proxyMarketplace == deployer.proxyMarketplace(), "wrong proxyMarketplace address");
+        console.log("proxyMarketplace address: %s", proxyMarketplace);
 
-        deployer.deploy(address(mindStream), initOwner, fundWallet, tax, callbackGasLimit, failureHandleStrategy);
+        deployer.deploy(address(marketplace), initOwner, fundWallet, tax, callbackGasLimit, failureHandleStrategy);
         vm.stopBroadcast();
     }
 }
