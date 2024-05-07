@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "@bnb-chain/greenfield-contracts/contracts/interface/IERC721NonTransferable.sol";
 import "@bnb-chain/greenfield-contracts/contracts/interface/IERC1155NonTransferable.sol";
 import "@bnb-chain/greenfield-contracts/contracts/interface/IGnfdAccessControl.sol";
+import "@bnb-chain/greenfield-contracts/contracts/interface/IBucketHub.sol";
 import "@bnb-chain/greenfield-contracts-sdk/GroupApp.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -80,6 +81,13 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         } else {
             revert("MarketPlace: invalid resource type");
         }
+    }
+
+    function getCreateSpaceMessages(address owner, string memory groupName, BucketStorage.CreateBucketSynPackage memory createPackage, bytes memory policyData)
+    public
+    view
+    returns(address[] memory _targets, bytes[] memory _data, uint256[] memory _values) {
+
     }
 
     function list(uint256 groupId, uint256 price) external onlyGroupOwner(groupId) {
