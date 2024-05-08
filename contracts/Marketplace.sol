@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
+import "./interface/IGreenfieldExecutor.sol";
 
 contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
@@ -18,11 +19,15 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     /*----------------- constants -----------------*/
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
-    // greenfield system contracts
-    address public constant _CROSS_CHAIN = 0x57b8A375193b2e9c6481f167BaECF1feEf9F7d4B;
-    address public constant _GROUP_HUB = 0x0Bf7D3Ed3F777D7fB8D65Fb21ba4FBD9F584B579;
-    address public constant _GROUP_TOKEN = 0x089AFF7964E435eB2C7b296B371078B18E2C9A35;
-    address public constant _MEMBER_TOKEN = 0x80Dd11998159cbea4BF79650fCc5Da72Ffb51EFc;
+    // TODO: set greenfield system contracts on Mainnet
+    // QA env
+    address public constant _CROSS_CHAIN = 0x994Aa0C06B64CD112972c812f9839309315ED466;
+    address public constant _GROUP_HUB = 0xaC6d82150875fe05e2067F1f10d9B417fDfDe6a7;
+    address public constant _BUCKET_HUB = 0x8A0b8755430F7df0f92DE45ce3E0408A4a324941;
+    address public constant _GROUP_TOKEN = 0xD2331b233e4232f9508C33b998E5F4Ca53451eC3;
+    address public constant _MEMBER_TOKEN = 0xCC79Ae19499E7CEEe7B8B9F3DE49a33789dC7d26;
+    address public constant _MULTI_MESSAGE = 0xDa62826DBBF7eCB3f49d25394e459801A75aCd1B;
+    address public constant _GREENFIELD_EXECUTOR = 0x4B3924c11c1ac052eAFE81059C0A08242fC0B4a2;
 
     /*----------------- storage -----------------*/
     // group ID => item price
@@ -73,7 +78,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint8 operationType,
         uint256 resourceId,
         bytes calldata callbackData
-    ) external override(GroupApp) {
+    ) external override (GroupApp) {
         require(msg.sender == _GROUP_HUB, "MarketPlace: invalid caller");
 
         if (resourceType == RESOURCE_GROUP) {
@@ -83,11 +88,23 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         }
     }
 
-    function getCreateSpaceMessages(address owner, string memory groupName, BucketStorage.CreateBucketSynPackage memory createPackage, bytes memory policyData)
-    public
-    view
-    returns(address[] memory _targets, bytes[] memory _data, uint256[] memory _values) {
+    function createSpace(
+        BucketStorage.CreateBucketSynPackage memory createPackage,
+        bytes memory _executorData
+    ) external payable {
+        (uint256 relayFee, uint256 ackRelayFee) = ICrossChain(_CROSS_CHAIN).getRelayFees();
+        require(msg.value >= relayFee + ackRelayFee + relayFee, "relay fees not enough");
+        require(msg.sender == createPackage.creator, "invalid creator");
 
+        IBucketHub(_BUCKET_HUB).createBucket{value: msg.value - relayFee}(createPackage);
+
+        uint8[] memory _msgTypes = new uint8[](1);
+        // * 9: SetBucketFlowRateLimit
+        _msgTypes[0] = 9;
+        bytes[] memory _msgBytes = new bytes[](1);
+        _msgBytes[0] = _executorData;
+
+        IGreenfieldExecutor(_GREENFIELD_EXECUTOR).execute{value: relayFee}(_msgTypes, _msgBytes);
     }
 
     function list(uint256 groupId, uint256 price) external onlyGroupOwner(groupId) {

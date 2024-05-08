@@ -1,8 +1,45 @@
 {
+  "scripts": {
+    "deploy:test": "npx hardhat run scripts/1-deploy.ts --network test",
+    "deploy:local": "npx hardhat run scripts/1-deploy.ts --network local",
+    "deploy:testnet": "npx hardhat run scripts/1-deploy.ts --network bsc-testnet",
+    "deploy:bsc": "npx hardhat run scripts/1-deploy.ts --network bsc",
+    "deploy:opbnb": "npx hardhat run scripts/1-2-deploy-opbnb.ts --network opbnb",
+    "lint": "forge fmt && npx prettier --write scripts/** test/**",
+    "verify:testnet": "npx hardhat run scripts/2-verify-scan.ts --network bsc-testnet",
+    "verify:bsc": "npx hardhat run scripts/2-verify-scan.ts --network bsc"
+  },
   "dependencies": {
     "@bnb-chain/greenfield-contracts": "1.0.0",
     "@bnb-chain/greenfield-contracts-sdk": "1.0.0",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3"
+  },
+  "devDependencies": {
+    "@ethersproject/abi": "^5.4.7",
+    "@ethersproject/providers": "^5.4.7",
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.6",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@nomiclabs/hardhat-etherscan": "^3.1.7",
+    "@openzeppelin/hardhat-upgrades": "^1.21.0",
+    "@typechain/ethers-v5": "^10.2.1",
+    "@typechain/hardhat": "^6.1.2",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": "^9.1.0",
+    "@types/node": ">=12.0.0",
+    "chai": "^4.2.0",
+    "dotenv": "^16.0.3",
+    "ethers": "^5.4.7",
+    "hardhat": "^2.17.1",
+    "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^2.8.6",
+    "prettier-plugin-solidity": "^1.1.3",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": ">=8.0.0",
+    "typechain": "^8.1.0",
+    "typescript": ">=4.5.0",
+    "web3": "^4.1.1"
   }
 }
