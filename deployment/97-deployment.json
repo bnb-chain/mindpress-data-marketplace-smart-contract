@@ -1,0 +1,8 @@
+{
+  "DeployCommitId": "dd02ddf26447f859cd633e85ccec9ecdfccad171",
+  "BlockNumber": 40291413,
+  "Deployer": "0x2EA08bBdF653d70A0B46386c26F23611dD6fBB4b",
+  "ProxyAdmin": "0xba8B07aA3Ec82ADfF09CE1b55B1d6d73E7E68d51",
+  "Marketplace": "0xf1a52C24DD202C74fB91fD3F7F2B24748f959b9F",
+  "implMarketplace": "0xdEe0339033eEEb70a9CfC7E73FD574861B57d624"
+}
