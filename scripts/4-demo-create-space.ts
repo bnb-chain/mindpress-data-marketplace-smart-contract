@@ -69,15 +69,18 @@ const main = async () => {
         name: bucketName,
         visibility: 2, // private
         paymentAddress: market.address,
+
         primarySpAddress: ethers.constants.AddressZero,
         primarySpApprovalExpiredHeight: 0,
+        globalVirtualGroupFamilyId: 0,
         primarySpSignature: '0x', // TODO if the owner of the bucket is a smart contract, we are not able to get the primarySpSignature
+
         chargedReadQuota: 0,
         extraData: '0x', // abi.encode of ExtraData
     };
 
     // TODO
-    const dataSetBucketFlowRateLimit = '';
+    const dataSetBucketFlowRateLimit = '0x';
 
     const [relayFee, ackRelayFee] = await crossChain.callStatic.getRelayFees();
     const value = relayFee.add(ackRelayFee).add(relayFee);

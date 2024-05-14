@@ -40,19 +40,27 @@
   dependencies:
     tslib "^2.3.1"
 
-"@bnb-chain/greenfield-contracts-sdk@1.0.0":
-  version "1.0.0"
-  resolved "https://registry.npmjs.org/@bnb-chain/greenfield-contracts-sdk/-/greenfield-contracts-sdk-1.0.0.tgz"
-  integrity sha512-Wo2wCyO4SqTbcbBb7o3KEUKHTWPxF7lv9lDtZhQ267iq+881nMJByuQ8B4k72tuqE2PYVpygR8f6z8wKHBAtjg==
+"@bnb-chain/greenfield-contracts-sdk@1.1.0":
+  version "1.1.0"
+  resolved "https://registry.npmjs.org/@bnb-chain/greenfield-contracts-sdk/-/greenfield-contracts-sdk-1.1.0.tgz"
+  integrity sha512-ZxR0Ig6LlpZAzXdKVQA2kkPI15IX1ImL34o9X0pgkvA1J2IhLuSu37phCLFqGzlKorIl54U1FtR4mTQgUJp+3Q==
   dependencies:
-    "@bnb-chain/greenfield-contracts" "1.0.0"
+    "@bnb-chain/greenfield-contracts" "1.1.0"
     "@openzeppelin/contracts" "^4.9.3"
     "@openzeppelin/contracts-upgradeable" "^4.9.3"
 
-"@bnb-chain/greenfield-contracts@1.0.0":
-  version "1.0.0"
-  resolved "https://registry.npmjs.org/@bnb-chain/greenfield-contracts/-/greenfield-contracts-1.0.0.tgz"
-  integrity sha512-6aP9SOfTef1fohZgrO6Bcq53dVRGp7jjbR8P3WvznJ+v3ggUySFRWJxqgqtoKf0prJ3+BuklY2fedksuG6spIw==
+"@bnb-chain/greenfield-contracts@1.1.0":
+  version "1.1.0"
+  resolved "https://registry.npmjs.org/@bnb-chain/greenfield-contracts/-/greenfield-contracts-1.1.0.tgz"
+  integrity sha512-5Yum+Hks2O2yxjlHDQFel1Re4vR9+y+zAR2l1SzM68moaTJBhmFAIcYRtMZMWYQZpA17+h0xfcddms7kNPU9Hg==
+  dependencies:
+    "@openzeppelin/contracts" "4.9.3"
+    "@openzeppelin/contracts-upgradeable" "4.9.3"
+
+"@bnb-chain/greenfield-contracts@1.2.2":
+  version "1.2.2"
+  resolved "https://registry.npmjs.org/@bnb-chain/greenfield-contracts/-/greenfield-contracts-1.2.2.tgz"
+  integrity sha512-FFiJ91w/7A+1Zz3v9EiGIMrrMKagSbgAAaYsziu7eO3L+1NIE+7TtNrotMHW1bk7MneZItkNUj6WshTR4/mewQ==
   dependencies:
     "@openzeppelin/contracts" "4.9.3"
     "@openzeppelin/contracts-upgradeable" "4.9.3"

@@ -10,8 +10,8 @@
     "verify:bsc": "npx hardhat run scripts/2-verify-scan.ts --network bsc"
   },
   "dependencies": {
-    "@bnb-chain/greenfield-contracts": "1.0.0",
-    "@bnb-chain/greenfield-contracts-sdk": "1.0.0",
+    "@bnb-chain/greenfield-contracts": "1.2.2",
+    "@bnb-chain/greenfield-contracts-sdk": "1.1.0",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3"
   },

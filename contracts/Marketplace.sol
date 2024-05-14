@@ -20,14 +20,15 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     // TODO: set greenfield system contracts on Mainnet
-    // QA env
-    address public constant _CROSS_CHAIN = 0x994Aa0C06B64CD112972c812f9839309315ED466;
-    address public constant _GROUP_HUB = 0xaC6d82150875fe05e2067F1f10d9B417fDfDe6a7;
-    address public constant _BUCKET_HUB = 0x8A0b8755430F7df0f92DE45ce3E0408A4a324941;
-    address public constant _GROUP_TOKEN = 0xD2331b233e4232f9508C33b998E5F4Ca53451eC3;
-    address public constant _MEMBER_TOKEN = 0xCC79Ae19499E7CEEe7B8B9F3DE49a33789dC7d26;
-    address public constant _MULTI_MESSAGE = 0xDa62826DBBF7eCB3f49d25394e459801A75aCd1B;
-    address public constant _GREENFIELD_EXECUTOR = 0x4B3924c11c1ac052eAFE81059C0A08242fC0B4a2;
+    // testnet env
+    address public constant _CROSS_CHAIN = 0xa5B2c9194131A4E0BFaCbF9E5D6722c873159cb7;
+    address public constant _GROUP_HUB = 0x50B3BF0d95a8dbA57B58C82dFDB5ff6747Cc1a9E;
+    address public constant _BUCKET_HUB = 0x5BB17A87D03620b313C39C24029C94cB5714814A;
+    address public constant _PERMISSION_HUB = 0x25E1eeDb5CaBf288210B132321FBB2d90b4174ad;
+    address public constant _GROUP_TOKEN = 0x7fC61D6FCA8D6Ea811637bA58eaf6aB17d50c4d1;
+    address public constant _MEMBER_TOKEN = 0x43bdF3d63e6318A2831FE1116cBA69afd0F05267;
+    address public constant _MULTI_MESSAGE = 0x54be643072eB8cF38Ac0c57Abc72b9c0368C8699;
+    address public constant _GREENFIELD_EXECUTOR = 0x3E3180883308e8B4946C9a485F8d91F8b15dC48e;
 
     /*----------------- storage -----------------*/
     // group ID => item price
