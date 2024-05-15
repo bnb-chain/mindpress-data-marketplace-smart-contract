@@ -26,7 +26,7 @@ const main = async () => {
     log('chainId', chainId);
     const contracts: any = require(`../deployment/${chainId}-deployment.json`);
 
-    const [operator, ownerSigner] = await ethers.getSigners();
+    const [op, ownerSigner, operator] = await ethers.getSigners();
     owner = ownerSigner.address;
     log('operator', operator.address, 'owner', owner);
 
@@ -88,66 +88,42 @@ const main = async () => {
     // TODO
     // get objectId here after upload object on greenfield
     const objectId = 123;
-    const bucketId = 456;
-    const objectPrice = ethers.utils.parseEther('0.123');
-    const groupId = await market.getListGroupId(operator.address)
 
     const groupName = `group-object-${objectId}`;
-    const callbackGasLimit = BigNumber.from(500000);
-    const callbackFee = callbackGasPrice.mul(callbackGasLimit);
-    const callbackDataCreateGroup = ethers.utils.solidityPack(
-        ['address'],
-        [operator.address]
-    );
+    // const groupName = `test-group`;
     const createGroupData = groupHub.interface.encodeFunctionData(
-        'prepareCreateGroup(address,address,string,uint256,(address,address,uint8,bytes))',
+        'prepareCreateGroup(address,address,string)',
         [
             operator.address,
             contracts.Marketplace,
             groupName,
-            callbackGasLimit,
-            {
-                appAddress: market.address,
-                refundAddress: operator.address,
-                failureHandleStrategy: 2, // SkipOnFail
-                callbackData: callbackDataCreateGroup,
-            },
         ]
     );
 
     // TODO
+    const groupId = await market.getListGroupId(operator.address)
     const policyDataToBindGroupToObject = '0x';
-    const callbackDataCreatePolicy = ethers.utils.solidityPack(
-        ['address', 'uint256', 'uint256', 'uint256', 'uint256'],
-        [
-            operator.address,
-            groupId,
-            bucketId,
-            objectId,
-            objectPrice,
-        ]
-    );
     const createPolicyData = permissionHub.interface.encodeFunctionData(
-        'prepareCreatePolicy(address,bytes,(address,address,uint8,bytes))',
+        'prepareCreatePolicy(address,bytes)',
         [
             operator.address,
             policyDataToBindGroupToObject,
-            {
-                appAddress: market.address,
-                refundAddress: operator.address,
-                failureHandleStrategy: 2, // SkipOnFail
-                callbackData: callbackDataCreatePolicy,
-            },
         ]
     );
     const data = [createGroupData, createPolicyData];
 
-    const values = [totalRelayerFee.add(callbackFee), totalRelayerFee.add(callbackFee)];
+    const values = [totalRelayerFee, totalRelayerFee];
     const totalValue = values.reduce((a, b) => a.add(b));
 
     log(targets, data, values);
     const tx = await multiMessage.sendMessages(targets, data, values, { value: totalValue });
     await tx.wait(1);
+
+
+    // TODO
+    const bucketId = 456;
+    const objectPrice = ethers.utils.parseEther('0.123');
+
 };
 
 main()
