@@ -90,15 +90,16 @@ const main = async () => {
     const objectId = 123;
     const bucketId = 456;
     const objectPrice = ethers.utils.parseEther('0.123');
+    const groupId = await market.getListGroupId(operator.address)
 
     const groupName = `list-object-group-${objectId}`;
     const callbackGasLimit = BigNumber.from(500000);
     const callbackFee = callbackGasPrice.mul(callbackGasLimit);
     const callbackDataCreateGroup = ethers.utils.solidityPack(
-        ['uint8', 'address', 'uint256', 'uint256', 'uint256'],
+        ['address', 'uint256', 'uint256', 'uint256', 'uint256'],
         [
-            1, // create group
             operator.address,
+            groupId,
             bucketId,
             objectId,
             objectPrice,
@@ -123,11 +124,13 @@ const main = async () => {
     // TODO
     const policyDataToBindGroupToObject = '0x';
     const callbackDataCreatePolicy = ethers.utils.solidityPack(
-        ['uint8', 'address', 'uint256'],
+        ['address', 'uint256', 'uint256', 'uint256', 'uint256'],
         [
-            2, // create policy
             operator.address,
+            groupId,
+            bucketId,
             objectId,
+            objectPrice,
         ]
     );
     const createPolicyData = permissionHub.interface.encodeFunctionData(

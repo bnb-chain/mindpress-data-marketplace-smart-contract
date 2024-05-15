@@ -30,6 +30,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     address public constant _MULTI_MESSAGE = 0x54be643072eB8cF38Ac0c57Abc72b9c0368C8699;
     address public constant _GREENFIELD_EXECUTOR = 0x3E3180883308e8B4946C9a485F8d91F8b15dC48e;
 
+    uint256 public constant CACHE_MIN_LIST_GROUPS = 20;
+
     /*----------------- storage -----------------*/
     // group ID => item price
     mapping(uint256 => uint256) public prices;
@@ -41,6 +43,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     uint256 public transferGasLimit; // 2300 for now
     uint256 public feeRate; // 10000 = 100%
+
+    EnumerableSetUpgradeable.UintSet private listGroupIds;
 
     /*----------------- event/modifier -----------------*/
     event List(address indexed owner, uint256 indexed groupId, uint256 price);
@@ -80,12 +84,16 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint256 resourceId,
         bytes calldata callbackData
     ) external override (GroupApp) {
-        require(msg.sender == _GROUP_HUB, "MarketPlace: invalid caller");
-
-        if (resourceType == RESOURCE_GROUP) {
-            _groupGreenfieldCall(status, operationType, resourceId, callbackData);
+        if (msg.sender == _GROUP_HUB) {
+            if (resourceType == RESOURCE_GROUP) {
+                _groupGreenfieldCall(status, operationType, resourceId, callbackData);
+            } else {
+                revert("MarketPlace: invalid resource type");
+            }
+        } else if (msg.sender == _PERMISSION_HUB) {
+            _permissionGreenfieldCall(status, operationType, resourceId, callbackData);
         } else {
-            revert("MarketPlace: invalid resource type");
+            revert("invalid caller");
         }
     }
 
@@ -194,6 +202,20 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         amount = _unclaimedFunds[msg.sender];
     }
 
+    function getListGroupId(address lister) external view returns (uint256 id) {
+        uint256 len = listGroupIds.length();
+        if (len == 0) {
+            return 0;
+        }
+
+        uint256 index = uint256(keccak256(abi.encodePacked(lister, block.timestamp))) % len;
+        return listGroupIds.at(index);
+    }
+
+    function getAllListGroupId(address lister) external view returns (uint256[] memory) {
+        return listGroupIds.values();
+    }
+
     /*----------------- admin functions -----------------*/
     function addOperator(address newOperator) external {
         grantRole(OPERATOR_ROLE, newOperator);
@@ -261,6 +283,22 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         IGroupHub(_GROUP_HUB).updateGroup{value: amount}(updatePkg, callbackGasLimit, _extraData);
     }
 
+    function _permissionGreenfieldCall(
+        uint32 status,
+        uint8 operationType,
+        uint256 resourceId,
+        bytes calldata callbackData
+    ) internal {
+        require(operationType == TYPE_CREATE, "invalid permission operationType");
+        require(listGroupIds.length() > CACHE_MIN_LIST_GROUPS, "cache list groups not enough");
+
+        (address lister, uint256 groupId, uint256 bucketId, uint256 objectId, uint256 objectPrice) = abi.decode(callbackData, (address, uint256, uint256, uint256, uint256));
+        require(listGroupIds.contains(groupId), "groupId not for list");
+        listGroupIds.remove(groupId);
+
+
+    }
+
     function _groupGreenfieldCall(
         uint32 status,
         uint8 operationType,
@@ -269,6 +307,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     ) internal override {
         if (operationType == TYPE_UPDATE) {
             _updateGroupCallback(status, resourceId, callbackData);
+        } else if (operationType == TYPE_CREATE) {
+
         } else {
             revert("MarketPlace: invalid operation type");
         }
