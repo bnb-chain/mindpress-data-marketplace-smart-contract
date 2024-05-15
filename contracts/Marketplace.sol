@@ -5,12 +5,14 @@ import "@bnb-chain/greenfield-contracts/contracts/interface/IERC721NonTransferab
 import "@bnb-chain/greenfield-contracts/contracts/interface/IERC1155NonTransferable.sol";
 import "@bnb-chain/greenfield-contracts/contracts/interface/IGnfdAccessControl.sol";
 import "@bnb-chain/greenfield-contracts/contracts/interface/IBucketHub.sol";
+import "@bnb-chain/greenfield-contracts/contracts/interface/IMultiMessage.sol";
 import "@bnb-chain/greenfield-contracts-sdk/GroupApp.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
 import "./interface/IGreenfieldExecutor.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
@@ -79,6 +81,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     ) public initializer {
         require(_initAdmin != address(0), "MarketPlace: invalid admin address");
         _grantRole(DEFAULT_ADMIN_ROLE, _initAdmin);
+        IGnfdAccessControl(_GROUP_HUB).grantRole(ROLE_CREATE, _initAdmin, block.timestamp + 10 * 365 days);
 
         transferGasLimit = 2300;
         fundWallet = _fundWallet;
@@ -126,8 +129,11 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         _msgBytes[0] = _executorData;
 
         IGreenfieldExecutor(_GREENFIELD_EXECUTOR).execute{value: relayFee}(_msgTypes, _msgBytes);
+
+        IGnfdAccessControl(_GROUP_HUB).grantRole(ROLE_CREATE, msg.sender, block.timestamp + 10 * 365 days);
     }
 
+/*
     function list(uint256 groupId, uint256 price) external onlyGroupOwner(groupId) {
         // the owner need to approve the marketplace contract to update the group
         require(IGnfdAccessControl(_GROUP_HUB).hasRole(ROLE_UPDATE, msg.sender, address(this)), "Marketplace: no grant");
@@ -138,6 +144,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
         emit List(msg.sender, groupId, price);
     }
+*/
 
     function setPrice(uint256 groupId, uint256 newPrice) external onlyGroupOwner(groupId) {
         require(prices[groupId] > 0, "MarketPlace: not listed");
@@ -189,6 +196,27 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         _unclaimedFunds[msg.sender] = 0;
         (bool success,) = msg.sender.call{value: amount}("");
         require(success, "MarketPlace: claim failed");
+    }
+
+    function createListGroupIds(string[] memory groupNames, uint256 callbackGasLimit, uint256 createGroupRelayFee) external payable {
+        require(groupNames.length > 0, "empty groupNames");
+        require(msg.value == groupNames.length * createGroupRelayFee, "createGroupRelayFee not enough");
+
+        ExtraData memory _extraData = ExtraData({
+            appAddress: address(this),
+            refundAddress: msg.sender,
+            failureHandleStrategy: failureHandleStrategy,
+            callbackData: abi.encode(address(this))
+        });
+
+        for (uint256 i = 0; i < groupNames.length; i++) {
+            IGroupHub(_GROUP_HUB).createGroup{value: createGroupRelayFee}(
+                address(this),
+                groupNames[i],
+                callbackGasLimit,
+                _extraData
+            );
+        }
     }
 
     /*----------------- view functions -----------------*/
@@ -316,6 +344,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         prices[groupId] = objectPrice;
         objectToGroupId[objectId] = groupId;
         collectionMap[lister].listGroupIds.push(groupId);
+        emit List(lister, groupId, objectPrice);
     }
 
     function _groupGreenfieldCall(
@@ -358,22 +387,9 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         (address creator) = abi.decode(_callbackData, (address));
 
         if (_status == STATUS_SUCCESS) {
-            if (creator != address(this)) {
-
-            } else {
-                require(IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId) == address(this), "");
-
-            }
+            require(IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_tokenId) == address(this), "invalid group owner");
             listGroupIds.add(_tokenId);
             emit AddedListGroup(creator, _tokenId);
-        } else {
-
-            (bool success,) = buyer.call{gas: transferGasLimit, value: price}("");
-            if (!success) {
-                _unclaimedFunds[buyer] += price;
-            }
-            emit BuyFailed(buyer, _tokenId);
-
         }
     }
 
