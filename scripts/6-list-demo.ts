@@ -92,24 +92,18 @@ const main = async () => {
     const objectPrice = ethers.utils.parseEther('0.123');
     const groupId = await market.getListGroupId(operator.address)
 
-    const groupName = `list-object-group-${objectId}`;
+    const groupName = `group-object-${objectId}`;
     const callbackGasLimit = BigNumber.from(500000);
     const callbackFee = callbackGasPrice.mul(callbackGasLimit);
     const callbackDataCreateGroup = ethers.utils.solidityPack(
-        ['address', 'uint256', 'uint256', 'uint256', 'uint256'],
-        [
-            operator.address,
-            groupId,
-            bucketId,
-            objectId,
-            objectPrice,
-        ]
+        ['address'],
+        [operator.address]
     );
     const createGroupData = groupHub.interface.encodeFunctionData(
         'prepareCreateGroup(address,address,string,uint256,(address,address,uint8,bytes))',
         [
             operator.address,
-            operator.address,
+            contracts.Marketplace,
             groupName,
             callbackGasLimit,
             {

@@ -46,12 +46,24 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     EnumerableSetUpgradeable.UintSet private listGroupIds;
 
+    // creator => collection
+    mapping(address => Collection) public collectionMap;
+
+    // objectId => groupId
+    mapping(uint256 => uint256) public objectToGroupId;
+
+    struct Collection {
+        uint256 bucketId;
+        uint256[] listGroupIds;
+    }
+
     /*----------------- event/modifier -----------------*/
     event List(address indexed owner, uint256 indexed groupId, uint256 price);
     event Delist(address indexed owner, uint256 indexed groupId);
     event Buy(address indexed buyer, uint256 indexed groupId);
     event BuyFailed(address indexed buyer, uint256 indexed groupId);
     event PriceUpdated(address indexed owner, uint256 indexed groupId, uint256 price);
+    event AddedListGroup(address indexed creator, uint256 indexed groupId);
 
     modifier onlyGroupOwner(uint256 groupId) {
         require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId), "MarketPlace: only group owner");
@@ -293,10 +305,17 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         require(listGroupIds.length() > CACHE_MIN_LIST_GROUPS, "cache list groups not enough");
 
         (address lister, uint256 groupId, uint256 bucketId, uint256 objectId, uint256 objectPrice) = abi.decode(callbackData, (address, uint256, uint256, uint256, uint256));
+        require(resourceId == objectId, "resource mismatch");
+
         require(listGroupIds.contains(groupId), "groupId not for list");
+        require(prices[groupId] == 0, "groupId already listed");
+        require(objectPrice > 0, "zero price");
+        require(collectionMap[lister].bucketId == bucketId, "bucket mismatch");
+
         listGroupIds.remove(groupId);
-
-
+        prices[groupId] = objectPrice;
+        objectToGroupId[objectId] = groupId;
+        collectionMap[lister].listGroupIds.push(groupId);
     }
 
     function _groupGreenfieldCall(
@@ -308,7 +327,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         if (operationType == TYPE_UPDATE) {
             _updateGroupCallback(status, resourceId, callbackData);
         } else if (operationType == TYPE_CREATE) {
-
+            _createGroupCallback(status, resourceId, callbackData);
         } else {
             revert("MarketPlace: invalid operation type");
         }
@@ -332,6 +351,29 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
                 _unclaimedFunds[buyer] += price;
             }
             emit BuyFailed(buyer, _tokenId);
+        }
+    }
+
+    function _createGroupCallback(uint32 _status, uint256 _tokenId, bytes memory _callbackData) internal override {
+        (address creator) = abi.decode(_callbackData, (address));
+
+        if (_status == STATUS_SUCCESS) {
+            if (creator != address(this)) {
+
+            } else {
+                require(IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId) == address(this), "");
+
+            }
+            listGroupIds.add(_tokenId);
+            emit AddedListGroup(creator, _tokenId);
+        } else {
+
+            (bool success,) = buyer.call{gas: transferGasLimit, value: price}("");
+            if (!success) {
+                _unclaimedFunds[buyer] += price;
+            }
+            emit BuyFailed(buyer, _tokenId);
+
         }
     }
 
