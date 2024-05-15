@@ -133,18 +133,16 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         IGnfdAccessControl(_GROUP_HUB).grantRole(ROLE_CREATE, msg.sender, block.timestamp + 10 * 365 days);
     }
 
-/*
-    function list(uint256 groupId, uint256 price) external onlyGroupOwner(groupId) {
-        // the owner need to approve the marketplace contract to update the group
-        require(IGnfdAccessControl(_GROUP_HUB).hasRole(ROLE_UPDATE, msg.sender, address(this)), "Marketplace: no grant");
+    function list(uint256 groupId, uint256 objectId, uint256 price) external onlyGroupOwner(groupId) {
         require(prices[groupId] == 0, "Marketplace: already listed");
         require(price > 0, "Marketplace: invalid price");
 
         prices[groupId] = price;
+        objectToGroupId[objectId] = groupId;
+        collectionMap[msg.sender].listGroupIds.push(groupId);
 
         emit List(msg.sender, groupId, price);
     }
-*/
 
     function setPrice(uint256 groupId, uint256 newPrice) external onlyGroupOwner(groupId) {
         require(prices[groupId] > 0, "MarketPlace: not listed");
@@ -218,6 +216,12 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             );
         }
     }
+
+/*
+    function setRole() external {
+        IGnfdAccessControl(_GROUP_HUB).grantRole(ROLE_CREATE, msg.sender, block.timestamp + 10 * 365 days);
+    }
+*/
 
     /*----------------- view functions -----------------*/
     function versionInfo()

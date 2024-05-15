@@ -116,14 +116,12 @@ const main = async () => {
     const totalValue = values.reduce((a, b) => a.add(b));
 
     log(targets, data, values);
-    const tx = await multiMessage.sendMessages(targets, data, values, { value: totalValue });
+    let tx = await multiMessage.sendMessages(targets, data, values, { value: totalValue });
     await tx.wait(1);
 
-
-    // TODO
-    const bucketId = 456;
     const objectPrice = ethers.utils.parseEther('0.123');
-
+    tx = await market.list(groupId, objectId, objectPrice)
+    await tx.wait(1)
 };
 
 main()
