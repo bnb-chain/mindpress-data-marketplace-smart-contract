@@ -31,9 +31,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     address public constant _MEMBER_TOKEN = 0x43bdF3d63e6318A2831FE1116cBA69afd0F05267;
     address public constant _MULTI_MESSAGE = 0x54be643072eB8cF38Ac0c57Abc72b9c0368C8699;
     address public constant _GREENFIELD_EXECUTOR = 0x3E3180883308e8B4946C9a485F8d91F8b15dC48e;
-
-    uint256 public constant CACHE_MIN_LIST_GROUPS = 20;
-
     /*----------------- storage -----------------*/
     // group ID => item price
     mapping(uint256 => uint256) public prices;
@@ -53,10 +50,26 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     // objectId => groupId
     mapping(uint256 => uint256) public objectToGroupId;
+    mapping(uint256 => address) public groupToLister;
+    uint256 public totalGroups;
+    mapping(string => uint256) public groupNameToId;
+
+    // groupId => ListItem info
+    mapping(uint256 => ListItem) public listItems;
+
+    // groupId => buyer => bought price
+    mapping(uint256 => mapping(address => uint256)) public buyPrice;
 
     struct Collection {
         uint256 bucketId;
         uint256[] listGroupIds;
+    }
+
+    struct ListItem {
+        string groupName;
+        string description;
+        uint256 categoryId;
+        address creator;
     }
 
     /*----------------- event/modifier -----------------*/
@@ -129,10 +142,9 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         _msgBytes[0] = _executorData;
 
         IGreenfieldExecutor(_GREENFIELD_EXECUTOR).execute{value: relayFee}(_msgTypes, _msgBytes);
-
-        IGnfdAccessControl(_GROUP_HUB).grantRole(ROLE_CREATE, msg.sender, block.timestamp + 10 * 365 days);
     }
 
+    /*
     function list(uint256 groupId, uint256 objectId, uint256 price) external onlyGroupOwner(groupId) {
         require(prices[groupId] == 0, "Marketplace: already listed");
         require(price > 0, "Marketplace: invalid price");
@@ -140,8 +152,34 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         prices[groupId] = price;
         objectToGroupId[objectId] = groupId;
         collectionMap[msg.sender].listGroupIds.push(groupId);
+        groupToLister[groupId] = msg.sender;
+
+        IGroupHub(_GROUP_HUB).createGroup{ value: msg.value }(address(this), string.concat("mindt0125_o_", Strings.toString(totalGroups)));
+        totalGroups++;
 
         emit List(msg.sender, groupId, price);
+    }
+    */
+
+    function list(
+        string calldata groupName,
+        uint256 price,
+        string calldata description,
+        uint256 categoryId
+    ) external payable {
+        require(price > 0, "invalid price");
+
+        ExtraData memory extraData = ExtraData({
+            appAddress: address(this),
+            refundAddress: msg.sender,
+            failureHandleStrategy: failureHandleStrategy,
+            callbackData: abi.encode(msg.sender, groupName, price, description, categoryId)
+        });
+        IGroupHub(_GROUP_HUB).createGroup{value: msg.value}(address(this), groupName, callbackGasLimit, extraData);
+    }
+
+    function getGroupId(string memory groupName) external view returns (uint256 groupId) {
+        return groupNameToId[groupName];
     }
 
     function setPrice(uint256 groupId, uint256 newPrice) external onlyGroupOwner(groupId) {
@@ -196,7 +234,11 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         require(success, "MarketPlace: claim failed");
     }
 
-    function createListGroupIds(string[] memory groupNames, uint256 callbackGasLimit, uint256 createGroupRelayFee) external payable {
+    function createListGroupIds(
+        string[] memory groupNames,
+        uint256 callbackGasLimit,
+        uint256 createGroupRelayFee
+    ) external payable {
         require(groupNames.length > 0, "empty groupNames");
         require(msg.value == groupNames.length * createGroupRelayFee, "createGroupRelayFee not enough");
 
@@ -209,19 +251,10 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
         for (uint256 i = 0; i < groupNames.length; i++) {
             IGroupHub(_GROUP_HUB).createGroup{value: createGroupRelayFee}(
-                address(this),
-                groupNames[i],
-                callbackGasLimit,
-                _extraData
+                address(this), groupNames[i], callbackGasLimit, _extraData
             );
         }
     }
-
-/*
-    function setRole() external {
-        IGnfdAccessControl(_GROUP_HUB).grantRole(ROLE_CREATE, msg.sender, block.timestamp + 10 * 365 days);
-    }
-*/
 
     /*----------------- view functions -----------------*/
     function versionInfo()
@@ -246,18 +279,27 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         amount = _unclaimedFunds[msg.sender];
     }
 
-    function getListGroupId(address lister) external view returns (uint256 id) {
-        uint256 len = listGroupIds.length();
-        if (len == 0) {
-            return 0;
-        }
-
-        uint256 index = uint256(keccak256(abi.encodePacked(lister, block.timestamp))) % len;
-        return listGroupIds.at(index);
-    }
-
-    function getAllListGroupId(address lister) external view returns (uint256[] memory) {
-        return listGroupIds.values();
+    function getListItem(
+        uint256 groupId,
+        address buyer
+    )
+        external
+        view
+        returns (
+            bool isBought,
+            string memory groupName,
+            string memory description,
+            uint256 categoryId,
+            address creator,
+            uint256 price
+        )
+    {
+        isBought = buyPrice[groupId][buyer] > 0;
+        groupName = listItems[groupId].groupName;
+        description = listItems[groupId].description;
+        categoryId = listItems[groupId].categoryId;
+        creator = listItems[groupId].creator;
+        price = prices[groupId];
     }
 
     /*----------------- admin functions -----------------*/
@@ -332,24 +374,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint8 operationType,
         uint256 resourceId,
         bytes calldata callbackData
-    ) internal {
-        require(operationType == TYPE_CREATE, "invalid permission operationType");
-        require(listGroupIds.length() > CACHE_MIN_LIST_GROUPS, "cache list groups not enough");
-
-        (address lister, uint256 groupId, uint256 bucketId, uint256 objectId, uint256 objectPrice) = abi.decode(callbackData, (address, uint256, uint256, uint256, uint256));
-        require(resourceId == objectId, "resource mismatch");
-
-        require(listGroupIds.contains(groupId), "groupId not for list");
-        require(prices[groupId] == 0, "groupId already listed");
-        require(objectPrice > 0, "zero price");
-        require(collectionMap[lister].bucketId == bucketId, "bucket mismatch");
-
-        listGroupIds.remove(groupId);
-        prices[groupId] = objectPrice;
-        objectToGroupId[objectId] = groupId;
-        collectionMap[lister].listGroupIds.push(groupId);
-        emit List(lister, groupId, objectPrice);
-    }
+    ) internal {}
 
     function _groupGreenfieldCall(
         uint32 status,
@@ -377,6 +402,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             if (!success) {
                 _unclaimedFunds[owner] += price - feeRateAmount;
             }
+
+            buyPrice[_tokenId][buyer] = price;
             emit Buy(buyer, _tokenId);
         } else {
             (bool success,) = buyer.call{gas: transferGasLimit, value: price}("");
@@ -388,12 +415,21 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function _createGroupCallback(uint32 _status, uint256 _tokenId, bytes memory _callbackData) internal override {
-        (address creator) = abi.decode(_callbackData, (address));
+        (address lister, string memory groupName, uint256 price, string memory description, uint256 categoryId) =
+            abi.decode(_callbackData, (address, string, uint256, string, uint256));
 
         if (_status == STATUS_SUCCESS) {
             require(IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_tokenId) == address(this), "invalid group owner");
-            listGroupIds.add(_tokenId);
-            emit AddedListGroup(creator, _tokenId);
+
+            listItems[_tokenId].creator = lister;
+            listItems[_tokenId].groupName = groupName;
+            listItems[_tokenId].description = description;
+            listItems[_tokenId].categoryId = categoryId;
+
+            prices[_tokenId] = price;
+
+            groupNameToId[groupName] = _tokenId;
+            emit List(lister, _tokenId, price);
         }
     }
 
