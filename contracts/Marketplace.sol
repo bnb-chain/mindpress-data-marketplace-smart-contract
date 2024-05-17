@@ -59,6 +59,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     // groupId => buyer => bought price
     mapping(uint256 => mapping(address => uint256)) public buyPrice;
+    mapping(uint256 => string) public listUrl;
 
     struct Collection {
         uint256 bucketId;
@@ -165,7 +166,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         string calldata groupName,
         uint256 price,
         string calldata description,
-        uint256 categoryId
+        uint256 categoryId,
+        string calldata url
     ) external payable {
         require(price > 0, "invalid price");
 
@@ -173,7 +175,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             appAddress: address(this),
             refundAddress: msg.sender,
             failureHandleStrategy: failureHandleStrategy,
-            callbackData: abi.encode(msg.sender, groupName, price, description, categoryId)
+            callbackData: abi.encode(msg.sender, groupName, price, description, categoryId, url)
         });
         IGroupHub(_GROUP_HUB).createGroup{value: msg.value}(address(this), groupName, callbackGasLimit, extraData);
     }
@@ -310,7 +312,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             string[] memory descriptions,
             uint256[] memory categoryIds,
             address[] memory creators,
-            uint256[] memory priceList
+            uint256[] memory priceList,
+            string[] memory urls
         )
     {
         uint256 cnt = groupIds.length;
@@ -319,6 +322,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         categoryIds = new uint256[](cnt);
         creators = new address[](cnt);
         priceList = new uint256[](cnt);
+        urls = new string[](cnt);
 
         uint256 groupId;
         for (uint256 i = 0; i < cnt; i++) {
@@ -329,6 +333,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             categoryIds[i] = listItems[groupId].categoryId;
             creators[i] = listItems[groupId].creator;
             priceList[i] = prices[groupId];
+            urls[i] = listUrl[groupId];
         }
     }
 
@@ -445,8 +450,14 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     }
 
     function _createGroupCallback(uint32 _status, uint256 _tokenId, bytes memory _callbackData) internal override {
-        (address lister, string memory groupName, uint256 price, string memory description, uint256 categoryId) =
-            abi.decode(_callbackData, (address, string, uint256, string, uint256));
+        (
+            address lister,
+            string memory groupName,
+            uint256 price,
+            string memory description,
+            uint256 categoryId,
+            string memory url
+        ) = abi.decode(_callbackData, (address, string, uint256, string, uint256, string));
 
         if (_status == STATUS_SUCCESS) {
             require(IERC721NonTransferable(_GROUP_TOKEN).ownerOf(_tokenId) == address(this), "invalid group owner");
@@ -457,6 +468,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             listItems[_tokenId].categoryId = categoryId;
 
             prices[_tokenId] = price;
+            listUrl[_tokenId] = url;
 
             groupNameToId[groupName] = _tokenId;
             emit List(lister, _tokenId, price);
