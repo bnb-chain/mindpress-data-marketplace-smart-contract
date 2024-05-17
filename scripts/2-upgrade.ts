@@ -1,5 +1,6 @@
 import { ProxyAdmin } from '../typechain-types';
-import { toHuman } from './helper';
+import { sleep, toHuman } from './helper';
+import { run } from 'hardhat';
 const { ethers } = require('hardhat');
 
 const log = console.log;
@@ -27,8 +28,16 @@ const main = async () => {
         ownerSigner
     ) as ProxyAdmin;
     const tx = await proxyAdmin.upgrade(contracts.Marketplace, implMarketplace.address);
-    await tx.wait(1);
+    await tx.wait(5);
     log('upgraded Marketplace New Impl', implMarketplace.address);
+
+    await sleep(120);
+    try {
+        await run('verify:verify', { address: implMarketplace.address });
+        log('impl contract verified');
+    } catch (e) {
+        log('verify error', e);
+    }
 };
 
 const deployContract = async (factoryPath: string, ...args: any) => {

@@ -302,6 +302,36 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         price = prices[groupId];
     }
 
+    function getListItems(uint256[] calldata groupIds)
+        external
+        view
+        returns (
+            string[] memory groupNames,
+            string[] memory descriptions,
+            uint256[] memory categoryIds,
+            address[] memory creators,
+            uint256[] memory priceList
+        )
+    {
+        uint256 cnt = groupIds.length;
+        groupNames = new string[](cnt);
+        descriptions = new string[](cnt);
+        categoryIds = new uint256[](cnt);
+        creators = new address[](cnt);
+        priceList = new uint256[](cnt);
+
+        uint256 groupId;
+        for (uint256 i = 0; i < cnt; i++) {
+            groupId = groupIds[i];
+
+            groupNames[i] = listItems[groupId].groupName;
+            descriptions[i] = listItems[groupId].description;
+            categoryIds[i] = listItems[groupId].categoryId;
+            creators[i] = listItems[groupId].creator;
+            priceList[i] = prices[groupId];
+        }
+    }
+
     /*----------------- admin functions -----------------*/
     function addOperator(address newOperator) external {
         grantRole(OPERATOR_ROLE, newOperator);
@@ -345,7 +375,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         address buyer = msg.sender;
         require(IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, groupId) == 0, "MarketPlace: already purchased");
 
-        address _owner = IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId);
+        address _owner = listItems[groupId].creator;
         address[] memory members = new address[](1);
         uint64[] memory expirations = new uint64[](1);
         members[0] = buyer;
