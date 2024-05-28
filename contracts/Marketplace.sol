@@ -61,6 +61,9 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     mapping(uint256 => mapping(address => uint256)) public buyPrice;
     mapping(uint256 => string) public listUrl;
 
+    // categoryId =>
+    mapping(uint256 => uint256[]) public categoryListedIds;
+
     struct Collection {
         uint256 bucketId;
         uint256[] listGroupIds;
@@ -337,6 +340,10 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         }
     }
 
+    function getListedGroupIds(uint256 categoryId) external view returns (uint256[] memory) {
+        return categoryListedIds[categoryId];
+    }
+
     /*----------------- admin functions -----------------*/
     function addOperator(address newOperator) external {
         grantRole(OPERATOR_ROLE, newOperator);
@@ -471,6 +478,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             listUrl[_tokenId] = url;
 
             groupNameToId[groupName] = _tokenId;
+            categoryListedIds[categoryId].push(_tokenId);
+
             emit List(lister, _tokenId, price);
         }
     }
