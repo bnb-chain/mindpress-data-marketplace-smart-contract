@@ -61,7 +61,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     mapping(uint256 => mapping(address => uint256)) public buyPrice;
     mapping(uint256 => string) public listUrl;
 
-    // categoryId =>
+    // categoryId => listed group ids
     mapping(uint256 => uint256[]) public categoryListedIds;
 
     // groupId => objectId
