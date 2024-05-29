@@ -13,5 +13,5 @@ runs = 10
 
 [rpc_endpoints]
 bsc = "https://bsc-dataseed1.binance.org/"
-bsc-test = "${RPC_BSC_TESTNET}"
+bsc-test = "${RPC_TESTNET}"
 test = "${RPC_TEST}"

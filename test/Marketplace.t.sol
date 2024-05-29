@@ -44,7 +44,8 @@ contract MarketplaceTest is Test {
 
         vm.startPrank(address(owner));
         ProxyAdmin(address(proxyAdmin)).upgrade(
-            ITransparentUpgradeableProxy(proxyMarketplace), address(implMarketplace)
+            ITransparentUpgradeableProxy(proxyMarketplace),
+            address(implMarketplace)
         );
         vm.stopPrank();
 
@@ -144,14 +145,14 @@ contract MarketplaceTest is Test {
 
         // failed with not enough fund
         vm.expectRevert("MarketPlace: insufficient fund");
-        IMarketplace(proxyMarketplace).buy{value: 1 ether}(tokenId, address(this));
+        IMarketplace(proxyMarketplace).buy{ value: 1 ether }(tokenId, address(this));
 
         // success case
         address[] memory members = new address[](1);
         members[0] = address(this);
         vm.expectEmit(true, true, true, true, groupHub);
         emit UpdateSubmitted(_owner, proxyMarketplace, tokenId, 0, members);
-        IMarketplace(proxyMarketplace).buy{value: 1e18 + relayFee}(tokenId, address(this));
+        IMarketplace(proxyMarketplace).buy{ value: 1e18 + relayFee }(tokenId, address(this));
     }
 
     function _getTotalFee() internal returns (uint256) {

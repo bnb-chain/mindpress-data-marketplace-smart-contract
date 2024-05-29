@@ -16,3 +16,17 @@ node_modules/
 !/broadcast/1-deploy.s.sol/56/run-latest.json
 !/broadcast/2-upgrade.s.sol/97/run-latest.json
 !/broadcast/2-upgrade.s.sol/56/run-latest.json
+
+node_modules
+coverage
+coverage.json
+typechain
+typechain-types
+
+#Hardhat files
+cache
+artifacts
+.idea
+out
+broadcast
+**.DS_Store
