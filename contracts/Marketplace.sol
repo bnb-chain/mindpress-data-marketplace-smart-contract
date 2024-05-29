@@ -125,8 +125,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             } else {
                 revert("MarketPlace: invalid resource type");
             }
-        } else if (msg.sender == _PERMISSION_HUB) {
-            _permissionGreenfieldCall(status, operationType, resourceId, callbackData);
         } else {
             revert("invalid caller");
         }
@@ -150,23 +148,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
         IGreenfieldExecutor(_GREENFIELD_EXECUTOR).execute{value: relayFee}(_msgTypes, _msgBytes);
     }
-
-    /*
-    function list(uint256 groupId, uint256 objectId, uint256 price) external onlyGroupOwner(groupId) {
-        require(prices[groupId] == 0, "Marketplace: already listed");
-        require(price > 0, "Marketplace: invalid price");
-
-        prices[groupId] = price;
-        objectToGroupId[objectId] = groupId;
-        collectionMap[msg.sender].listGroupIds.push(groupId);
-        groupToLister[groupId] = msg.sender;
-
-        IGroupHub(_GROUP_HUB).createGroup{ value: msg.value }(address(this), string.concat("mindt0125_o_", Strings.toString(totalGroups)));
-        totalGroups++;
-
-        emit List(msg.sender, groupId, price);
-    }
-    */
 
     function list(
         string calldata groupName,
@@ -417,13 +398,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
         IGroupHub(_GROUP_HUB).updateGroup{value: amount}(updatePkg, callbackGasLimit, _extraData);
     }
-
-    function _permissionGreenfieldCall(
-        uint32 status,
-        uint8 operationType,
-        uint256 resourceId,
-        bytes calldata callbackData
-    ) internal {}
 
     function _groupGreenfieldCall(
         uint32 status,
