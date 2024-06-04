@@ -1,11 +1,19 @@
 # Mind Marketplace Contract
 
-Mind marketplace is a marketplace protocol for safely and efficiently buying and selling data uploaded in [Greenfield](https://github.com/bnb-chain/greenfield).
+## Overview
+[MindPress Data Marketplace](https://testnet-marketplace.mindpress.io/) is a demo built on the BNB Smart Chain and BNB Greenfield storage chains. It uses the image trading scenario as an example to demonstrate the use of BNB Greenfield's latest release (V1.6&V1.7), such as cross-chain programmability, delegate upload, and sponsor-paid storage fees. With these features, developers can easily create a web3 decentralized trading platform based on the BNB Chain ecosystem with a great user experience and comprehensive functions such as storage, trading, and content permission management, thereby accelerating project development and marketing.
 
 ## Features
-**Create Space**: Create a collection to sell your work.
-**List Objects**: List your artwork uploaded on Greenfield to sell.
-**Buy Objects**: Buy artworks and get download access.
+As an image stock, sellers can upload and list photos for sale, while buyers can search for images they like, buy, and download the original files.
+
+### Seller
+- **Upload objects (e.g. images) to BNB Greenfield**: Sellers can upload multiple images to BNB Greenfield at once under the BSC network.
+- **List objects on the BNB Smart Chain**: Sellers can list their uploaded images for sale on the BSC network and begin selling download/view permissions to buyers to earn money.
+
+### Buyer
+- **Search objects**: Buyers can search for objects by name and category ID to find what they want.
+- **Buy objects**: Buyers can purchase objects and obtain download/view permission.
+- **Download objects**: Buyers can download/view their purchased objects.
 
 ## Environment Support
 
@@ -13,17 +21,22 @@ Mind marketplace is a marketplace protocol for safely and efficiently buying and
 - BNB Greenfield Testnet
 
 ## Technical Design
+### Tech Stack
+- Solidity
+- Typescript
+- Foundry
 
 ### Architecture Diagram
-
 <p align="center">
     <img width="600px" src="mind-marketplace-architecture.png" alt="">
 </p>
 
-### Workflow
-**Create Space**: create a bucket for listing artworks by sending a greenfield cross-chain transaction
-**List Objects**: create a group and create a policy to bind the group and object for listing by sending two greenfield cross-chain transactions
-**Buy Objects**: add buyer into the group by sending a greenfield cross-chain transaction
+### Technical Considerations
+
+
+### Upcoming Changes
+- Delist objects
+- List process optimization from 2 steps to 1 step
 
 ## Install
 
