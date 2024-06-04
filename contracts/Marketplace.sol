@@ -31,6 +31,8 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     address public constant _MEMBER_TOKEN = 0x43bdF3d63e6318A2831FE1116cBA69afd0F05267;
     address public constant _MULTI_MESSAGE = 0x54be643072eB8cF38Ac0c57Abc72b9c0368C8699;
     address public constant _GREENFIELD_EXECUTOR = 0x3E3180883308e8B4946C9a485F8d91F8b15dC48e;
+
+    address public constant ERC2771_FORWARDER = 0x5e06E40B2c35157AE1ba0a63e2371a34EB8Bde8b;
     /*----------------- storage -----------------*/
     // group ID => item price
     mapping(uint256 => uint256) public prices;
@@ -179,11 +181,21 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         emit PriceUpdated(msg.sender, groupId, newPrice);
     }
 
-    function delist(uint256 groupId) external onlyGroupOwner(groupId) {
+    function delist(uint256 groupId) external {
         require(prices[groupId] > 0, "MarketPlace: not listed");
+        require(listItems[groupId].creator == msg.sender, "MarketPlace: not creator");
 
         delete prices[groupId];
 
+        uint256 categoryId = listItems[groupId].categoryId;
+        uint256[] storage listedIds = categoryListedIds[categoryId];
+        for (uint256 i = 0; i < listedIds.length; i++) {
+            if (listedIds[i] == groupId) {
+                listedIds[i] = listedIds[listedIds.length - 1];
+                listedIds.pop();
+                break;
+            }
+        }
         emit Delist(msg.sender, groupId);
     }
 
@@ -332,6 +344,14 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         return categoryListedIds[categoryId];
     }
 
+    function isTrustedForwarder(address forwarder) public pure returns (bool) {
+        return forwarder == ERC2771_FORWARDER;
+    }
+
+    function getErc2771Sender() external view returns (address) {
+        return _erc2771Sender();
+    }
+
     /*----------------- admin functions -----------------*/
     function addOperator(address newOperator) external {
         grantRole(OPERATOR_ROLE, newOperator);
@@ -466,6 +486,29 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
             emit List(lister, _tokenId, price);
         }
     }
+
+    /**
+     * @dev Override for `msg.sender`. Defaults to the original `msg.sender` whenever
+     * a call is not performed by the trusted forwarder or the calldata length is less than
+     * 20 bytes (an address length).
+     */
+    function _erc2771Sender() internal view returns (address) {
+        uint256 calldataLength = msg.data.length;
+        uint256 contextSuffixLength = _contextSuffixLength();
+        if (isTrustedForwarder(msg.sender) && calldataLength >= contextSuffixLength) {
+            return address(bytes20(msg.data[calldataLength - contextSuffixLength:]));
+        } else {
+            return msg.sender;
+        }
+    }
+
+    /**
+     * @dev ERC-2771 specifies the context as being a single address (20 bytes).
+     */
+    function _contextSuffixLength() internal pure returns (uint256) {
+        return 20;
+    }
+
 
     // placeHolder reserved for future usage
     uint256[50] private __reservedSlots;
