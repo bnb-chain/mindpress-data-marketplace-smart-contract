@@ -32,7 +32,17 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     address public constant _MULTI_MESSAGE = 0x54be643072eB8cF38Ac0c57Abc72b9c0368C8699;
     address public constant _GREENFIELD_EXECUTOR = 0x3E3180883308e8B4946C9a485F8d91F8b15dC48e;
 
-    address public constant ERC2771_FORWARDER = 0x5e06E40B2c35157AE1ba0a63e2371a34EB8Bde8b;
+    /**
+     * @dev The eip-2771 defines a contract-level protocol for Recipient contracts to accept
+     * meta-transactions through trusted Forwarder contracts. No protocol changes are made.
+     * Recipient contracts are sent the effective msg.sender (referred to as _msgSender())
+     * and msg.data (referred to as _msgData()) by appending additional calldata.
+     * eip-2771 doc: https://eips.ethereum.org/EIPS/eip-2771
+     * openzeppelin eip-2771 contract: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/metatx/ERC2771Forwarder.sol
+     * The ERC2771_FORWARDER contract deployed from: https://github.com/bnb-chain/ERC2771Forwarder.git
+     */
+    address public constant ERC2771_FORWARDER = 0xdb7d0bd38D223048B1cFf39700E4C5238e346f7F;
+    uint256 private constant CONTEXT_SUFFIX_LENGTH = 20;
     /*----------------- storage -----------------*/
     // group ID => item price
     mapping(uint256 => uint256) public prices;
@@ -90,7 +100,9 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     event AddedListGroup(address indexed creator, uint256 indexed groupId);
 
     modifier onlyGroupOwner(uint256 groupId) {
-        require(msg.sender == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId), "MarketPlace: only group owner");
+        require(
+            _erc2771Sender() == IERC721NonTransferable(_GROUP_TOKEN).ownerOf(groupId), "MarketPlace: only group owner"
+        );
         _;
     }
 
@@ -120,7 +132,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint8 operationType,
         uint256 resourceId,
         bytes calldata callbackData
-    ) external override (GroupApp) {
+    ) external override(GroupApp) {
         if (msg.sender == _GROUP_HUB) {
             if (resourceType == RESOURCE_GROUP) {
                 _groupGreenfieldCall(status, operationType, resourceId, callbackData);
@@ -138,7 +150,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     ) external payable {
         (uint256 relayFee, uint256 ackRelayFee) = ICrossChain(_CROSS_CHAIN).getRelayFees();
         require(msg.value >= relayFee + ackRelayFee + relayFee, "relay fees not enough");
-        require(msg.sender == createPackage.creator, "invalid creator");
+        require(_erc2771Sender() == createPackage.creator, "invalid creator");
 
         IBucketHub(_BUCKET_HUB).createBucket{value: msg.value - relayFee}(createPackage);
 
@@ -160,12 +172,13 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         uint256 objectId
     ) external payable {
         require(price > 0, "invalid price");
+        address _sender = _erc2771Sender();
 
         ExtraData memory extraData = ExtraData({
             appAddress: address(this),
-            refundAddress: msg.sender,
+            refundAddress: _sender,
             failureHandleStrategy: failureHandleStrategy,
-            callbackData: abi.encode(msg.sender, groupName, price, description, categoryId, url, objectId)
+            callbackData: abi.encode(_sender, groupName, price, description, categoryId, url, objectId)
         });
         IGroupHub(_GROUP_HUB).createGroup{value: msg.value}(address(this), groupName, callbackGasLimit, extraData);
     }
@@ -174,16 +187,11 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         return groupNameToId[groupName];
     }
 
-    function setPrice(uint256 groupId, uint256 newPrice) external onlyGroupOwner(groupId) {
-        require(prices[groupId] > 0, "MarketPlace: not listed");
-        require(newPrice > 0, "MarketPlace: invalid price");
-        prices[groupId] = newPrice;
-        emit PriceUpdated(msg.sender, groupId, newPrice);
-    }
-
     function delist(uint256 groupId) external {
         require(prices[groupId] > 0, "MarketPlace: not listed");
-        require(listItems[groupId].creator == msg.sender, "MarketPlace: not creator");
+
+        address _sender = _erc2771Sender();
+        require(listItems[groupId].creator == _sender, "MarketPlace: not creator");
 
         delete prices[groupId];
 
@@ -196,7 +204,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
                 break;
             }
         }
-        emit Delist(msg.sender, groupId);
+        emit Delist(_sender, groupId);
     }
 
     function buy(uint256 groupId, address refundAddress) external payable {
@@ -236,28 +244,6 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         require(success, "MarketPlace: claim failed");
     }
 
-    function createListGroupIds(
-        string[] memory groupNames,
-        uint256 callbackGasLimit,
-        uint256 createGroupRelayFee
-    ) external payable {
-        require(groupNames.length > 0, "empty groupNames");
-        require(msg.value == groupNames.length * createGroupRelayFee, "createGroupRelayFee not enough");
-
-        ExtraData memory _extraData = ExtraData({
-            appAddress: address(this),
-            refundAddress: msg.sender,
-            failureHandleStrategy: failureHandleStrategy,
-            callbackData: abi.encode(address(this))
-        });
-
-        for (uint256 i = 0; i < groupNames.length; i++) {
-            IGroupHub(_GROUP_HUB).createGroup{value: createGroupRelayFee}(
-                address(this), groupNames[i], callbackGasLimit, _extraData
-            );
-        }
-    }
-
     /*----------------- view functions -----------------*/
     function versionInfo()
         external
@@ -265,7 +251,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         override
         returns (uint256 version, string memory name, string memory description)
     {
-        return (2, "MarketPlace", "b1e2d2364271044a7d918cbfea985d131c12f0a6");
+        return (3, "MarketPlace", "support erc2771");
     }
 
     function getPrice(uint256 groupId) external view returns (uint256 price) {
@@ -392,7 +378,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
 
     /*----------------- internal functions -----------------*/
     function _buy(uint256 groupId, address refundAddress, uint256 amount) internal {
-        address buyer = msg.sender;
+        address buyer = _erc2771Sender();
         require(IERC1155NonTransferable(_MEMBER_TOKEN).balanceOf(buyer, groupId) == 0, "MarketPlace: already purchased");
 
         address _owner = listItems[groupId].creator;
@@ -494,21 +480,13 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
      */
     function _erc2771Sender() internal view returns (address) {
         uint256 calldataLength = msg.data.length;
-        uint256 contextSuffixLength = _contextSuffixLength();
+        uint256 contextSuffixLength = CONTEXT_SUFFIX_LENGTH;
         if (isTrustedForwarder(msg.sender) && calldataLength >= contextSuffixLength) {
             return address(bytes20(msg.data[calldataLength - contextSuffixLength:]));
         } else {
             return msg.sender;
         }
     }
-
-    /**
-     * @dev ERC-2771 specifies the context as being a single address (20 bytes).
-     */
-    function _contextSuffixLength() internal pure returns (uint256) {
-        return 20;
-    }
-
 
     // placeHolder reserved for future usage
     uint256[50] private __reservedSlots;
