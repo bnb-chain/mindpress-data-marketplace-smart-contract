@@ -78,11 +78,13 @@ const main = async () => {
 
     const [relayFee, ackRelayFee] = await crossChain.callStatic.getRelayFees();
     const totalRelayerFee = relayFee.add(ackRelayFee).add(relayFee);
+    // TODO
+    const callbackFee = BigNumber.from(0)
     const calls: any = [
         {
             target: contracts.Marketplace,
             allowFailure: false,
-            value: totalRelayerFee,
+            value: totalRelayerFee.add(callbackFee),
             data: market.interface.encodeFunctionData(
                 "list",
                 ['groupName', 1, "description", 1, "picture-url", 1]
