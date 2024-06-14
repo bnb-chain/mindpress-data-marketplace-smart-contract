@@ -5,7 +5,7 @@ import {
     GroupHub,
     IBucketHub,
     ICrossChain,
-    IERC721,
+    IERC721, ITrustedForwarder,
     Marketplace,
     MultiMessage,
     PermissionHub,
@@ -39,6 +39,7 @@ const main = async () => {
         operator
     ) as Marketplace;
 
+
     const _CROSS_CHAIN = await market._CROSS_CHAIN();
     const _GROUP_HUB = await market._GROUP_HUB();
     const _BUCKET_HUB = await market._BUCKET_HUB();
@@ -46,6 +47,12 @@ const main = async () => {
     const _MULTI_MESSAGE = await market._MULTI_MESSAGE();
     const _GREENFIELD_EXECUTOR = await market._GREENFIELD_EXECUTOR();
     const _GROUP_TOKEN = await market._GROUP_TOKEN();
+    const ERC2771_FORWARDER = await market.ERC2771_FORWARDER();
+
+    const forwarder = (await ethers.getContractAt('ITrustedForwarder', ERC2771_FORWARDER)).connect(
+        operator
+    ) as ITrustedForwarder;
+
 
     log('_MULTI_MESSAGE', _MULTI_MESSAGE);
     const multiMessage = (await ethers.getContractAt('MultiMessage', _MULTI_MESSAGE)).connect(
@@ -69,52 +76,36 @@ const main = async () => {
         operator
     ) as IERC721;
 
-    // 2. list object
-    // check group nft approved
-    const isApproved = await groupToken.isApprovedForAll(operator.address, contracts.Marketplace);
-    if (!isApproved) {
-        const tx = await groupToken.setApprovalForAll(contracts.Marketplace, true);
-        await tx.wait(1);
-    }
-
-    // 2-1. create group
-    // 2-2. create policy => bind group to the object id
     const [relayFee, ackRelayFee] = await crossChain.callStatic.getRelayFees();
     const totalRelayerFee = relayFee.add(ackRelayFee).add(relayFee);
-    const callbackGasPrice = await crossChain.callStatic.callbackGasPrice();
+    const calls: any = [
+        {
+            target: contracts.Marketplace,
+            allowFailure: false,
+            value: totalRelayerFee,
+            data: market.interface.encodeFunctionData(
+                "list",
+                ['groupName', 1, "description", 1, "picture-url", 1]
+            )
+        },
+        {
+            target: _PERMISSION_HUB,
+            allowFailure: false,
+            value: totalRelayerFee,
+            data: permissionHub.interface.encodeFunctionData(
+                'createPolicy(bytes)',
+                ['0x']
+            )
+        }
+    ]
 
-    const targets = [_GROUP_HUB, _PERMISSION_HUB];
+    let totalValue = BigNumber.from(0)
+    for (let i = 0; i < calls.length; i++) {
+        totalValue = totalValue.add(calls[i].value)
+    }
 
-    // TODO
-    // get objectId here after upload object on greenfield
-    const objectId = 123;
-
-    const groupName = `group-object-${objectId}`;
-    // const groupName = `test-group`;
-    const createGroupData = groupHub.interface.encodeFunctionData(
-        'prepareCreateGroup(address,address,string)',
-        [operator.address, contracts.Marketplace, groupName]
-    );
-
-    // TODO
-    const groupId = await market.getListGroupId(operator.address);
-    const policyDataToBindGroupToObject = '0x';
-    const createPolicyData = permissionHub.interface.encodeFunctionData(
-        'prepareCreatePolicy(address,bytes)',
-        [operator.address, policyDataToBindGroupToObject]
-    );
-    const data = [createGroupData, createPolicyData];
-
-    const values = [totalRelayerFee, totalRelayerFee];
-    const totalValue = values.reduce((a, b) => a.add(b));
-
-    log(targets, data, values);
-    let tx = await multiMessage.sendMessages(targets, data, values, { value: totalValue });
-    await tx.wait(1);
-
-    const objectPrice = ethers.utils.parseEther('0.123');
-    tx = await market.list(groupId, objectId, objectPrice);
-    await tx.wait(1);
+    const tx = await forwarder.aggregate3Value(calls, { value: totalValue });
+    await tx.wait(1)
 };
 
 main()
