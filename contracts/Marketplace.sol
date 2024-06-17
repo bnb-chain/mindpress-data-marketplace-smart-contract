@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/EnumerableMapUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/structs/DoubleEndedQueueUpgradeable.sol";
 import "./interface/IGreenfieldExecutor.sol";
+import "./interface/ITokenHub.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
@@ -31,6 +32,7 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     address public constant _MEMBER_TOKEN = 0x43bdF3d63e6318A2831FE1116cBA69afd0F05267;
     address public constant _MULTI_MESSAGE = 0x54be643072eB8cF38Ac0c57Abc72b9c0368C8699;
     address public constant _GREENFIELD_EXECUTOR = 0x3E3180883308e8B4946C9a485F8d91F8b15dC48e;
+    address public constant _TOKEN_HUB = 0xED8e5C546F84442219A5a987EE1D820698528E04;
 
     /**
      * @dev The eip-2771 defines a contract-level protocol for Recipient contracts to accept
@@ -150,9 +152,10 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
     ) external payable {
         (uint256 relayFee, uint256 ackRelayFee) = ICrossChain(_CROSS_CHAIN).getRelayFees();
         require(msg.value >= relayFee + ackRelayFee + relayFee, "relay fees not enough");
-        require(_erc2771Sender() == createPackage.creator, "invalid creator");
+        address _sender = _erc2771Sender();
+        require(_sender == createPackage.creator, "invalid creator");
 
-        IBucketHub(_BUCKET_HUB).createBucket{value: msg.value - relayFee}(createPackage);
+        IBucketHub(_BUCKET_HUB).createBucket{value: relayFee + ackRelayFee}(createPackage);
 
         uint8[] memory _msgTypes = new uint8[](1);
         // * 9: SetBucketFlowRateLimit
@@ -161,6 +164,12 @@ contract Marketplace is ReentrancyGuard, AccessControl, GroupApp {
         _msgBytes[0] = _executorData;
 
         IGreenfieldExecutor(_GREENFIELD_EXECUTOR).execute{value: relayFee}(_msgTypes, _msgBytes);
+
+        uint256 remainingAmt = msg.value - relayFee - ackRelayFee - relayFee;
+        if (remainingAmt > relayFee + ackRelayFee) {
+            uint256 transferAmt = remainingAmt - relayFee - ackRelayFee;
+            ITokenHub(_TOKEN_HUB).transferOut{value: relayFee + ackRelayFee}(_sender, transferAmt);
+        }
     }
 
     function list(
